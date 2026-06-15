@@ -8,15 +8,18 @@ EndoGaussian — 4D Gaussian Splatting for dynamic endoscopic scene reconstructi
 
 ## Environment setup
 
-Requires CUDA 11.7 + PyTorch 1.13.1 (Python 3.7 conda env per README). Two CUDA submodules must be installed editable:
+Targets **Python 3.12 + CUDA 12.1 + PyTorch 2.5.1** (migrated from the original Python 3.7 / PyTorch 1.13 / CUDA 11.7 stack — see "Migration notes" below). Install PyTorch from the cu121 wheel index first so pip resolves the right local-version tags, then the rest:
 
 ```
+conda create -n EndoGaussian python=3.12
+conda activate EndoGaussian
+pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 pip install -e submodules/depth-diff-gaussian-rasterization
 pip install -e submodules/simple-knn
 ```
 
-`render.py` calls `os.sched_setaffinity` ([render.py:32](render.py#L32)) which is Linux-only — running the renderer on Windows requires patching that line out.
+The two CUDA submodules are compiled against the installed PyTorch — a different torch/cu combo means rebuilding them (`pip install --force-reinstall --no-deps -e submodules/...`). The `os.sched_setaffinity` call at the top of `render.py` is now guarded by `hasattr` so it no-ops on Windows.
 
 ## Common commands
 
@@ -71,9 +74,23 @@ Densification & pruning are driven by `opacity_threshold_*` / `densify_grad_thre
 
 `ModelParams`, `PipelineParams`, `OptimizationParams`, `ModelHiddenParams` are argparse-style classes. Per-scene `.py` files under `arguments/<dataset>/` are plain dicts named after these classes (e.g. `ModelParams = dict(extra_mark='endonerf', camera_extent=10)`) — they override defaults via `utils.params_utils.merge_hparams`. `get_combined_args` additionally reloads the persisted `cfg_args` from `--model_path` so rendering/eval matches the training run.
 
+The per-scene `.py` is loaded by [utils/config_loader.py](utils/config_loader.py) (`importlib.util.spec_from_file_location`), which replaces the legacy `mmcv.Config.fromfile` call. It returns a plain `dict[str, dict]` keyed by the four group names; `merge_hparams` already consumed that shape, so no other code changed.
+
 ### Rasterizer
 
 `gaussian_renderer/__init__.py` wraps the `depth-diff-gaussian-rasterization` CUDA kernel and additionally returns rendered depth. The vanilla `diff-gaussian-rasterization` submodule is listed in `.gitmodules` but the codebase uses the depth-aware fork.
+
+## Migration notes (Python 3.7 → 3.12)
+
+Done in-tree:
+- `requirements.txt` rewritten for the cu121 wheel index. `mmcv` removed entirely.
+- `mmcv.Config.fromfile` replaced by [utils/config_loader.py](utils/config_loader.py) (stdlib `importlib`). Used from [train.py](train.py) and [render.py](render.py).
+- `os.sched_setaffinity` in [render.py](render.py) guarded with `hasattr` so the renderer also runs on Windows.
+- `torch.load(checkpoint, weights_only=False)` in [train.py](train.py) (the checkpoint is a tuple, not a state_dict — `weights_only=True` would reject it; default flips in PyTorch ≥2.6, so this is forward-compatible).
+
+Not done — verify locally:
+- The two CUDA submodules need to be rebuilt against PyTorch 2.5. The setup.py files use a generic `CUDAExtension` so they usually compile cleanly, but if `nvcc` complains about deprecated symbols, the typical fixes are `AT_CHECK` → `TORCH_CHECK` and `.data<T>()` → `.data_ptr<T>()` in the `cuda_rasterizer/` and `simple_knn/` sources.
+- `journal/` still references the old `mmcv` API and the old `requirements.txt`. It is a frozen snapshot — left as-is on purpose. If you ever resurrect code from it, port through the live tree.
 
 ## Repo-specific notes
 

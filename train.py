@@ -44,7 +44,7 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
     first_iter = 0
     gaussians.training_setup(opt)
     if checkpoint:
-        (model_params, first_iter) = torch.load(checkpoint)
+        (model_params, first_iter) = torch.load(checkpoint, weights_only=False)
         gaussians.restore(model_params, opt)
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
@@ -343,9 +343,9 @@ if __name__ == "__main__":
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     if args.configs:
-        import mmcv
+        from utils.config_loader import load_config
         from utils.params_utils import merge_hparams
-        config = mmcv.Config.fromfile(args.configs)
+        config = load_config(args.configs)
         args = merge_hparams(args, config)
     print("Optimizing " + args.model_path)
 

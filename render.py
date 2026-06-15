@@ -28,8 +28,8 @@ import cv2
 
 import os
 
-cpu_list = [0]
-os.sched_setaffinity(0, cpu_list)
+if hasattr(os, "sched_setaffinity"):
+    os.sched_setaffinity(0, [0])
 
 
 
@@ -210,9 +210,9 @@ if __name__ == "__main__":
     args = get_combined_args(parser)
     print("Rendering ", args.model_path)
     if args.configs:
-        import mmcv
+        from utils.config_loader import load_config
         from utils.params_utils import merge_hparams
-        config = mmcv.Config.fromfile(args.configs)
+        config = load_config(args.configs)
         args = merge_hparams(args, config)
     # Initialize system state (RNG)
     safe_state(args.quiet)
