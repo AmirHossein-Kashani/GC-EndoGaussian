@@ -27,14 +27,18 @@
 git clone https://github.com/yifliu3/EndoGaussian.git
 cd EndoGaussian
 git submodule update --init --recursive
-conda create -n EndoGaussian python=3.7 
+conda create -n EndoGaussian python=3.12
 conda activate EndoGaussian
 
+# Install PyTorch first from the CUDA 12.1 wheel index so the local-version tags resolve correctly.
+pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
+
+# The two CUDA submodules are compiled against the installed PyTorch.
 pip install -e submodules/depth-diff-gaussian-rasterization
 pip install -e submodules/simple-knn
 ```
-In our environment, we use pytorch=1.13.1, and the CUDA compile version is 11.7.
+The fork has been migrated from the original Python 3.7 / PyTorch 1.13.1 / CUDA 11.7 stack to **Python 3.12 / PyTorch 2.5.1 / CUDA 12.1**. The `mmcv` dependency was removed; per-scene `.py` configs are now loaded via a small stdlib helper in [utils/config_loader.py](utils/config_loader.py). If you are on a different CUDA toolkit, swap the wheel index (`cu118`, `cu124`, ...) and rebuild the two submodules.
 ## 📚 Data Preparation
 **EndoNeRF:**  
 The dataset provided in [EndoNeRF](https://arxiv.org/abs/2206.15255) is used. You can download and process the dataset from their website (https://github.com/med-air/EndoNeRF). We use the two accessible clips including 'pulling_soft_tissues' and 'cutting_tissues_twice'.
