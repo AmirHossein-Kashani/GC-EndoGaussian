@@ -98,3 +98,13 @@ Not done — verify locally:
 - `full_eval.py` is inherited from upstream 3DGS and references mipnerf360 / tanks-and-temples / deep-blending scene names; it is not wired to the endoscopic datasets used here.
 - TensorBoard logging in `training_report` only emits scalar loss/timing; the image/PSNR test block is commented out ([train.py:275](train.py#L275)).
 - `arguments/<scene>_mono.py` variants switch `mode='monocular'` which changes the depth-loss branch.
+
+## Real EndoNeRF data
+
+The real EndoNeRF clips live only on the authors' Google Drive ([folder](https://drive.google.com/drive/folders/1zTcX80c1yrbntY9c6-EK2W2UVESVEug8)). `gdown` (folder or API path) trips Drive's anonymous daily download cap after a few dozen of the ~190 small files, but the plain `uc?export=download` endpoint via `curl` is on a less-restricted path and works. So fetch the `pulling_soft_tissues` clip into the EndoGaussian layout with:
+
+```
+bash tools/download_endonerf_pulling.bash      # -> data/endonerf/pulling/{images,depth,masks}/*.png + poses_bounds.npy
+```
+
+Drive file IDs are pinned in `tools/endonerf_pulling/fileids.tsv` (63 images + 63 depth + 63 masks + poses_bounds; binocular mode). The full run (train 1000+3000 → render test/video/point-clouds → metrics) is wired up in [run_endogaussian.bash](run_endogaussian.bash); it reproduces paper-level quality on `pulling` (PSNR ~37.3, SSIM ~0.96, LPIPS ~0.06). `data/`, `output/`, and `reconstruct/` are git-ignored.
