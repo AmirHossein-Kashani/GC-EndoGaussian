@@ -48,6 +48,11 @@ class GaussianModel:
         
         self._deformation = deform_network(args)
 
+        # GC-EndoGaussian: per-Gaussian soft bindings to control hypernodes (rebuilt, not optimized)
+        self.use_node_graph = getattr(args, "use_node_graph", False)
+        self._binding_idx = torch.empty(0)
+        self._binding_w = torch.empty(0)
+
         self._deformation_table = torch.empty(0)
         self._features_dc = torch.empty(0)
         self._features_rest = torch.empty(0)
@@ -176,6 +181,12 @@ class GaussianModel:
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}
         ]
 
+        if self.use_node_graph:
+            node_params = self._deformation.get_node_parameters()
+            if len(node_params) > 0:
+                node_lr_init = getattr(training_args, "node_lr_init", training_args.deformation_lr_init)
+                l.append({'params': node_params, 'lr': node_lr_init * self.spatial_lr_scale, "name": "node_gnn"})
+
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
         
         self.xyz_scheduler_args = get_expon_lr_func(lr_init=training_args.position_lr_init*self.spatial_lr_scale,
@@ -189,7 +200,14 @@ class GaussianModel:
         self.grid_scheduler_args = get_expon_lr_func(lr_init=training_args.grid_lr_init*self.spatial_lr_scale,
                                                     lr_final=training_args.grid_lr_final*self.spatial_lr_scale,
                                                     lr_delay_mult=training_args.deformation_lr_delay_mult,
-                                                    max_steps=training_args.position_lr_max_steps)    
+                                                    max_steps=training_args.position_lr_max_steps)
+        if self.use_node_graph:
+            node_lr_init = getattr(training_args, "node_lr_init", training_args.deformation_lr_init)
+            node_lr_final = getattr(training_args, "node_lr_final", training_args.deformation_lr_final)
+            self.node_scheduler_args = get_expon_lr_func(lr_init=node_lr_init*self.spatial_lr_scale,
+                                                    lr_final=node_lr_final*self.spatial_lr_scale,
+                                                    lr_delay_mult=training_args.deformation_lr_delay_mult,
+                                                    max_steps=training_args.position_lr_max_steps)
 
     def update_learning_rate(self, iteration):
         ''' Learning rate scheduling per step '''
@@ -206,6 +224,9 @@ class GaussianModel:
                 lr = self.deformation_scheduler_args(iteration)
                 param_group['lr'] = lr
                 # return lr
+            elif param_group["name"] == "node_gnn" and hasattr(self, "node_scheduler_args"):
+                lr = self.node_scheduler_args(iteration)
+                param_group['lr'] = lr
 
     def construct_list_of_attributes(self):
         l = ['x', 'y', 'z', 'nx', 'ny', 'nz']
@@ -230,7 +251,8 @@ class GaussianModel:
         print("loading model from exists{}".format(path))
         
         weight_dict = torch.load(os.path.join(path,"deformation.pth"),map_location="cuda")
-        self._deformation.load_state_dict(weight_dict)
+        # strict=False so newer buffers (e.g. the edit handle) absent from old checkpoints are fine
+        self._deformation.load_state_dict(weight_dict, strict=False)
         self._deformation = self._deformation.to("cuda")
         
         self._deformation_table = torch.gt(torch.ones((self.get_xyz.shape[0]),device="cuda"),0)
@@ -489,6 +511,75 @@ class GaussianModel:
     def update_deformation_table(self,threshold):
         # print("origin deformation point nums:",self._deformation_table.sum())
         self._deformation_table = torch.gt(self._deformation_accum.max(dim=-1).values/100,threshold)
+
+    # ---- GC-EndoGaussian: control-graph maintenance -----------------------------------
+    @property
+    def _node_deform(self):
+        return self._deformation.deformation_net.node_deform
+
+    @property
+    def node_seeded(self):
+        nd = self._node_deform
+        return nd is not None and bool(nd.seeded.item())
+
+    @torch.no_grad()
+    def compute_node_bindings(self):
+        nd = self._node_deform
+        idx, w = nd.compute_binding(self._xyz.detach())
+        self._binding_idx = idx
+        self._binding_w = w
+
+    @torch.no_grad()
+    def seed_node_graph(self):
+        """Seed control nodes by motion-weighted FPS, then (re)compute Gaussian->node bindings."""
+        nd = self._node_deform
+        if nd is None or self._xyz.shape[0] == 0:
+            return
+        if hasattr(self, "_deformation_accum") and self._deformation_accum.shape[0] == self._xyz.shape[0]:
+            motion = self._deformation_accum.norm(dim=-1)
+        else:
+            motion = torch.ones(self._xyz.shape[0], device=self._xyz.device)
+        nd.seed_nodes(self._xyz.detach(), motion)
+        self.compute_node_bindings()
+
+    @torch.no_grad()
+    def maintain_node_graph(self, iteration, refresh_interval):
+        """Re-seed periodically; otherwise refresh bindings only when the Gaussian count changed."""
+        if not (self.use_node_graph and self.node_seeded) or self._xyz.shape[0] == 0:
+            return
+        if refresh_interval > 0 and iteration % refresh_interval == 0:
+            self.seed_node_graph()
+        elif self._binding_idx.shape[0] != self._xyz.shape[0]:
+            self.compute_node_bindings()
+
+    def compute_node_regulation(self, lambda_arap, lambda_temporal, lambda_isometric, t):
+        """Graph-coupling priors: ARAP rigidity and/or as-isometric edge-length preservation,
+        plus temporal smoothness of node trajectories."""
+        nd = self._node_deform
+        if nd is None or not bool(nd.seeded.item()):
+            return torch.tensor(0., device=self._xyz.device)
+        reg = torch.tensor(0., device=self._xyz.device)
+        R, trans = nd.node_transforms(t)                 # (M,3,3), (M,3)
+        node_xyz = nd.node_xyz
+        nbr = nd.node_neighbors                           # (M,k)
+        p = node_xyz + trans                              # deformed node positions
+        if lambda_arap > 0:
+            rest = node_xyz.unsqueeze(1) - node_xyz[nbr]              # (M,k,3) = n_m - n_n
+            pred = torch.einsum("mij,mkj->mki", R, rest)             # R_m (n_m - n_n)
+            cur = p.unsqueeze(1) - p[nbr]                            # (M,k,3)
+            reg = reg + lambda_arap * ((cur - pred) ** 2).sum(-1).mean()
+        if lambda_isometric > 0:
+            # tissue resists stretching but bends freely: preserve edge lengths, allow rotation.
+            rest_len = (node_xyz.unsqueeze(1) - node_xyz[nbr]).norm(dim=-1)   # (M,k)
+            cur_len = (p.unsqueeze(1) - p[nbr]).norm(dim=-1)                  # (M,k)
+            reg = reg + lambda_isometric * ((cur_len - rest_len) ** 2).mean()
+        if lambda_temporal > 0:
+            dt = 0.05
+            _, tp = nd.node_transforms(min(1.0, float(t) + dt))
+            _, tm = nd.node_transforms(max(0.0, float(t) - dt))
+            second = tp - 2.0 * trans + tm                           # second time-difference
+            reg = reg + lambda_temporal * (second ** 2).sum(-1).mean()
+        return reg
 
     def print_deformation_weight_grad(self):
         for name, weight in self._deformation.named_parameters():

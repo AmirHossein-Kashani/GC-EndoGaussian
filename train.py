@@ -66,8 +66,48 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
     
     if not viewpoint_stack:
         viewpoint_stack = scene.getTrainCameras()
-    
-    for iteration in range(first_iter, final_iter+1):        
+
+    # Sparse-view robustness: restrict supervision to every Nth training frame (idx 0 always
+    # kept so the coarse stage is unaffected). Test set is untouched.
+    _stride = max(1, getattr(opt, "train_frame_stride", 1))
+    allowed_idxs = list(range(0, len(viewpoint_stack), _stride))
+    if _stride > 1:
+        print(f"[sparse-view] stride={_stride}: training on {len(allowed_idxs)}/{len(viewpoint_stack)} frames")
+
+    # GC-EndoGaussian: seed the control-node graph at the start of the fine stage.
+    if stage == "fine" and getattr(gaussians, "use_node_graph", False):
+        gaussians.seed_node_graph()
+        print(f"[node-graph] seeded {gaussians._node_deform.node_xyz.shape[0]} control nodes "
+              f"(gnn_layers={gaussians._node_deform.gnn_layers}, K={gaussians._node_deform.gauss_knn_K})")
+
+    # Occlusion-holdout: blank a box out of the loss mask for a contiguous block of train frames.
+    occ_on = getattr(hyper, "occ_holdout", False)
+    occ_lo = int(getattr(hyper, "occ_block_lo", 0.33) * len(viewpoint_stack))
+    occ_hi = int(getattr(hyper, "occ_block_hi", 0.66) * len(viewpoint_stack))
+    _occ_keep_cache = {}
+    def occ_keep_for(m):
+        key = tuple(m.shape[-2:])
+        if key not in _occ_keep_cache:
+            H, W = key
+            keep = torch.ones((H, W), device=m.device)
+            keep[int(hyper.occ_y0*H):int(hyper.occ_y1*H), int(hyper.occ_x0*W):int(hyper.occ_x1*W)] = 0
+            _occ_keep_cache[key] = keep
+        return _occ_keep_cache[key]
+    if occ_on and stage == "fine":
+        print(f"[occ-holdout] frames [{occ_lo}..{occ_hi}] box=("
+              f"{hyper.occ_x0},{hyper.occ_y0})-({hyper.occ_x1},{hyper.occ_y1})")
+
+    # Optical-flow supervision: build per-pair warp grids from GT (offline cv2); self-gated.
+    flow_grids, flow_enabled = None, False
+    lambda_flow = getattr(hyper, "lambda_flow", 0.0)
+    if lambda_flow > 0 and stage == "fine":
+        from utils.flow_utils import build_flow_grids, flow_warp
+        gt_imgs = [viewpoint_stack[i].original_image.cuda().float() for i in range(len(viewpoint_stack))]
+        flow_grids, flow_enabled, fstat = build_flow_grids(gt_imgs, "cuda")
+        print(f"[flow] lambda={lambda_flow}; Farneback warp improves GT on {fstat[0]}/{fstat[1]} "
+              f"checked pairs; flow_enabled={flow_enabled}")
+
+    for iteration in range(first_iter, final_iter+1):
         if network_gui.conn == None:
             network_gui.try_connect()
         while network_gui.conn != None:
@@ -91,7 +131,7 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
         if stage == 'coarse':
             idx = 0
         else:
-            idx = randint(0, len(viewpoint_stack)-1)
+            idx = allowed_idxs[randint(0, len(allowed_idxs)-1)]
         viewpoint_cams = [viewpoint_stack[idx]]
 
         # Render
@@ -115,7 +155,9 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
             gt_image = viewpoint_cam.original_image.cuda().float()
             gt_depth = viewpoint_cam.original_depth.cuda().float()
             mask = viewpoint_cam.mask.cuda()
-            
+            if occ_on and stage == "fine" and (occ_lo <= idx <= occ_hi):
+                mask = mask * occ_keep_for(mask)
+
             images.append(image.unsqueeze(0))
             depths.append(depth.unsqueeze(0))
             gt_images.append(gt_image.unsqueeze(0))
@@ -161,6 +203,24 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
         if stage == "fine" and hyper.time_smoothness_weight != 0:
             tv_loss = gaussians.compute_regulation(2e-2, 2e-2, 2e-2)
             loss += tv_loss
+        if stage == "fine" and getattr(gaussians, "use_node_graph", False) and gaussians.node_seeded:
+            lambda_arap = getattr(hyper, "lambda_arap", 0.0)
+            lambda_node_temporal = getattr(hyper, "lambda_node_temporal", 0.0)
+            lambda_isometric = getattr(hyper, "lambda_isometric", 0.0)
+            if lambda_arap > 0 or lambda_node_temporal > 0 or lambda_isometric > 0:
+                # optionally relax the coherence priors over training: rigid early (stability),
+                # looser late (fit fine non-rigid motion). Floors at 0.2 of the initial weight.
+                anneal = 1.0
+                if getattr(hyper, "node_reg_anneal", False):
+                    anneal = max(0.2, 1.0 - iteration / float(final_iter))
+                loss = loss + anneal * gaussians.compute_node_regulation(
+                    lambda_arap, lambda_node_temporal, lambda_isometric, viewpoint_cams[0].time)
+        if flow_enabled and idx < len(viewpoint_stack) - 1 and flow_grids[idx] is not None:
+            from utils.flow_utils import flow_warp
+            img_next = render(viewpoint_stack[idx + 1], gaussians, pipe, background, stage=stage)["render"]
+            warped = flow_warp(image, flow_grids[idx])          # render_idx warped into frame idx+1
+            flow_l = l1_loss(warped, img_next.unsqueeze(0), mask.unsqueeze(0))
+            loss = loss + lambda_flow * flow_l
         if opt.lambda_dssim != 0:
             ssim_loss = ssim(rendered_images,gt_images)
             loss += opt.lambda_dssim * (1.0-ssim_loss)
@@ -225,9 +285,22 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
                     print("reset opacity")
                     gaussians.reset_opacity()
-                    
+
+            # GC-EndoGaussian: keep the control-node graph + bindings consistent with the
+            # (possibly densified/pruned) Gaussian set; re-seed periodically with fresh motion.
+            if stage == "fine":
+                gaussians.maintain_node_graph(iteration, getattr(hyper, "node_refresh_interval", 1000))
+
             # Optimizer step
             if iteration < train_iter:
+                # Stabilize the deformation field: clip its gradient norm so noisy data can't blow
+                # the HexPlane/MLP (or node GNN) up to NaN. Generous norm — only clips real spikes.
+                clip = getattr(opt, "grad_clip", 10.0)
+                if clip > 0:
+                    defo_params = [p for g in gaussians.optimizer.param_groups
+                                   if g["name"] in ("deformation", "grid", "node_gnn") for p in g["params"]]
+                    if defo_params:
+                        torch.nn.utils.clip_grad_norm_(defo_params, max_norm=clip)
                 gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none = True)
 
@@ -340,6 +413,7 @@ if __name__ == "__main__":
     parser.add_argument("--start_checkpoint", type=str, default = None)
     parser.add_argument("--expname", type=str, default = "")
     parser.add_argument("--configs", type=str, default = "")
+    parser.add_argument("--seed", type=int, default = 6666)
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     if args.configs:
@@ -347,6 +421,7 @@ if __name__ == "__main__":
         from utils.params_utils import merge_hparams
         config = load_config(args.configs)
         args = merge_hparams(args, config)
+    setup_seed(args.seed)   # re-seed (CLI/config) for the stability study across seeds
     print("Optimizing " + args.model_path)
 
     # Initialize system state (RNG)

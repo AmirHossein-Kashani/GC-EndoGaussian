@@ -29,7 +29,11 @@ import cv2
 import os
 
 if hasattr(os, "sched_setaffinity"):
-    os.sched_setaffinity(0, [0])
+    try:
+        os.sched_setaffinity(0, [0])
+    except OSError:
+        # CPU 0 may lie outside the SLURM cgroup's allowed CPU set; affinity is best-effort.
+        pass
 
 
 
@@ -132,10 +136,13 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         reconstruct_point_cloud(render_images, mask_list, render_depths, camera_parameters, name)
 
 def render_sets(dataset : ModelParams, hyperparam, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, skip_video: bool, reconstruct: bool):
-    
-    cpu_list = list(range(cpu_count))[1:2]
-    psutil.Process().cpu_affinity(cpu_list)
-    
+
+    try:
+        cpu_list = list(range(cpu_count))[1:2]
+        psutil.Process().cpu_affinity(cpu_list)
+    except Exception:
+        pass  # affinity pinning is best-effort; the requested CPU may be outside the allocation
+
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree, hyperparam)
         scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False, load_coarse=dataset.no_fine)
@@ -191,9 +198,11 @@ if __name__ == "__main__":
     cpu_count = psutil.cpu_count()
     print(cpu_count)
 
-    cpu_list = list(range(cpu_count))[1:2]
-
-    psutil.Process().cpu_affinity(cpu_list)
+    try:
+        cpu_list = list(range(cpu_count))[1:2]
+        psutil.Process().cpu_affinity(cpu_list)
+    except Exception:
+        pass  # affinity pinning is best-effort; the requested CPU may be outside the allocation
 
     # Set up command line argument parser
     parser = ArgumentParser(description="Testing script parameters")

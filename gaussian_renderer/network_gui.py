@@ -27,12 +27,20 @@ def init(wish_host, wish_port):
     global host, port, listener
     host = wish_host
     port = wish_port
-    listener.bind((host, port))
-    listener.listen()
-    listener.settimeout(0)
+    try:
+        listener.bind((host, port))
+        listener.listen()
+        listener.settimeout(0)
+    except OSError as e:
+        # The live-viewer GUI is irrelevant for batch/SLURM training; if the port is taken
+        # (e.g. two jobs co-located on one node), disable it instead of crashing training.
+        print(f"[network_gui] port {host}:{port} unavailable ({e}); disabling GUI server.")
+        listener = None
 
 def try_connect():
     global conn, addr, listener
+    if listener is None:
+        return
     try:
         conn, addr = listener.accept()
         print(f"\nConnected by {addr}")

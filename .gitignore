@@ -13,6 +13,9 @@ scripts/
 *.sh
 .ply
 
+# Claude Code local working directory (memory, plans, session state)
+.claude/
+
 # Python virtual environment (recreate via the setup steps in CLAUDE.md)
 .venv/
 

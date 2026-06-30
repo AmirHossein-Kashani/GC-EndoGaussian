@@ -71,13 +71,21 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         scales = pc._scaling
         rotations = pc._rotation
     deformation_point = pc._deformation_table
-    
+
+    # GC-EndoGaussian: supply each deformable Gaussian's control-node bindings to the graph layer.
+    binding_idx = binding_w = None
+    if stage != "coarse" and getattr(pc, "use_node_graph", False) and pc.node_seeded:
+        if pc._binding_idx.shape[0] != means3D.shape[0]:
+            pc.compute_node_bindings()
+        binding_idx = pc._binding_idx[deformation_point]
+        binding_w = pc._binding_w[deformation_point]
+
     if stage == "coarse" :
         means3D_deform, scales_deform, rotations_deform, opacity_deform = means3D, scales, rotations, opacity
     else:
-        means3D_deform, scales_deform, rotations_deform, opacity_deform = pc._deformation(means3D[deformation_point], scales[deformation_point], 
+        means3D_deform, scales_deform, rotations_deform, opacity_deform = pc._deformation(means3D[deformation_point], scales[deformation_point],
                                                                          rotations[deformation_point], opacity[deformation_point],
-                                                                         time[deformation_point])
+                                                                         time[deformation_point], binding_idx, binding_w)
     # print(time.max())
     with torch.no_grad():
         pc._deformation_accum[deformation_point] += torch.abs(means3D_deform - means3D[deformation_point])
