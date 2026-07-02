@@ -83,6 +83,8 @@ def main():
     parser.add_argument("--tracks", type=str, required=True)
     parser.add_argument("--pad_v", type=int, default=16)
     parser.add_argument("--splat_k", type=int, default=8)   # nodes each handle drives
+    parser.add_argument("--dump_frame", type=int, default=-1)  # if >=0, dump per-point pixels for a qualitative figure
+    parser.add_argument("--dump_K", type=int, default=8)
     args = get_combined_args(parser)
     if args.configs:
         from utils.config_loader import load_config
@@ -193,6 +195,61 @@ def main():
                         errs["tps"].append(reproj_err(q, gu, gv, fx, cx, cy))
             return errs
 
+        # ---- optional: dump per-point pixels for a qualitative figure ----
+        # dump_frame >= 0: that single frame; dump_frame == -2: every frame (pick representative offline)
+        if args.dump_frame >= 0 or args.dump_frame == -2:
+            vptsd = np.where(valid)[0]
+            orderd = vptsd[farthest_point_idx(x0[vptsd], len(vptsd))]
+            Kd = args.dump_K
+            handles = (orderd[0::4][:Kd] if len(orderd[0::4]) >= Kd else orderd[:Kd]).tolist()
+            targets = [p for p in vptsd if p not in set(handles)]
+            frame_list = range(1, T) if args.dump_frame == -2 else [args.dump_frame]
+
+            def dump_one(f):
+                hd, hx0, hpix = [], [], []
+                for p in handles:
+                    u, v, vis = tracks[f, p]
+                    if not (valid[p] and vis and u > 0 and v > 0):
+                        continue
+                    Z = depth_at(cams[f], u, v, W, H)
+                    if Z <= 0:
+                        continue
+                    hd.append(backproject(u, v, Z, fx, cx, cy) - x0[p]); hx0.append(x0[p])
+                    hpix.append([float(u), float(v)])
+                hd, hx0 = np.array(hd), np.array(hx0)
+                if len(hd) < 1:
+                    return None
+                edit = torch.zeros_like(node_xyz_t); wsum = torch.zeros(node_xyz_t.shape[0], 1, device=dev)
+                for j in range(len(hd)):
+                    h0 = torch.tensor(hx0[j], device=dev, dtype=node_xyz_t.dtype)
+                    dist2 = ((node_xyz_t - h0) ** 2).sum(1)
+                    kk = torch.topk(dist2, min(args.splat_k, dist2.numel()), largest=False)
+                    ww = torch.softmax(-kk.values / (kk.values[:1] + 1e-8), 0).unsqueeze(1)
+                    edit[kk.indices] += ww * torch.tensor(hd[j], device=dev, dtype=node_xyz_t.dtype); wsum[kk.indices] += ww
+                edit = edit / wsum.clamp_min(1e-8)
+                nd.edit_translation = edit; nd.control_only = True
+                xyz = deformed_xyz(gaussians, cams[f].time); nd.control_only = False
+                nd.edit_translation = torch.zeros_like(node_xyz_t)
+                uv, _ = project(xyz, cams[f], W, H)
+                rows = []
+                for p in targets:
+                    if not valid[p] or anchor[p] < 0:
+                        continue
+                    gu, gv, vis = tracks[f, p]
+                    if not (vis and gu > 0 and gv > 0):
+                        continue
+                    pu, pv = uv[anchor[p]].tolist()
+                    nn = int(np.argmin(np.linalg.norm(hx0 - x0[p], axis=1)))
+                    rows.append({"gt": [float(gu), float(gv)], "graph": [float(pu), float(pv)],
+                                 "nearest": proj_pt(x0[p] + hd[nn], fx, cx, cy)})
+                return {"frame": f, "handles": hpix, "targets": rows}
+
+            frames = [r for f in frame_list if (r := dump_one(f)) is not None]
+            with open(os.path.join(args.model_path, "control_viz.json"), "w") as fp:
+                json.dump({"K": Kd, "pad_v": args.pad_v, "W": W, "H": H, "frames": frames}, fp, indent=1)
+            print(f"dumped control_viz.json: {len(frames)} frames, K={Kd}")
+            return
+
         # ---- controllability curve + 4-fold CV ----
         vpts = np.where(valid)[0]
         methods = ["graph", "rigid", "nearest", "tps"]
@@ -228,6 +285,11 @@ def reproj_err(q_world, gu, gv, fx, cx, cy):
     u = q_world[0] / q_world[2] * fx + cx
     v = q_world[1] / q_world[2] * fx + cy
     return float(np.hypot(u - gu, v - gv))
+
+
+def proj_pt(q_world, fx, cx, cy):
+    """Project a world point to pixel (u,v) under the static identity cam."""
+    return [float(q_world[0] / q_world[2] * fx + cx), float(q_world[1] / q_world[2] * fx + cy)]
 
 
 if __name__ == "__main__":
