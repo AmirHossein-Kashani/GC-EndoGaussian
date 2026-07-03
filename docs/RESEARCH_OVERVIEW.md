@@ -1,9 +1,9 @@
 # GC-EndoGaussian — Research Overview
 
-*A single readable account of what we built, the innovation, the results, and an honest assessment.
+*A single readable account of what we built, the innovation, the key techniques, and an honest assessment.
 Every number here was verified against the result files in `results_archive/` (the archived JSON values
-are authoritative). Companion docs: `technical_report.md` (full detail), `implementation_review.md`
-(audit), `proposal.md` / `report.md` (framing).*
+are authoritative). Companion docs: [paper.md](paper.md) (the submission paper) and
+[IMPLEMENTATION.md](IMPLEMENTATION.md) (configs, commands, and how to reproduce every number).*
 
 ---
 
