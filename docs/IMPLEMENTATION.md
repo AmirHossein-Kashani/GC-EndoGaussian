@@ -62,13 +62,15 @@ never changes the learnable parameter set.
 distance-softmax `w = softmax(-d² / σ²)` (σ from the per-Gaussian nearest-node distance). Bindings are
 per-Gaussian and rebuilt when densification changes the Gaussian set.
 
-### 3.3 Message-passing GNN → per-node SE(3)
+### 3.3 Per-node SE(3) network (message passing not load-bearing)
 `_run_gnn(t)`: node inputs `h⁰ = MLP([γ(n), γ(t)])` with positional encoding `γ` (`node_pe` freqs). Then
 `gnn_layers` EdgeConv-style residual layers
 `h^{l+1} = h^l + φ(h^l, AGG_{n∈N(m)} ψ(h^l, hⁿ, γ(nⁿ−n)))`. A head emits **3 translation + 6D rotation**
 per node (`rotation_6d_to_matrix`), **initialised to identity** (`init_identity_head`: zeroed weights,
 bias `[1,0,0,0,1,0]`) so training starts as an exact no-op. `gnn_layers=0` reduces to an independent
-per-node MLP (the **SC-GS-style ablation**).
+per-node MLP; `gnn_type='gat'` swaps mean aggregation for attention. **The message passing is an
+implementation detail, not a contribution**: `gnn_layers=0` and GAT both perform on par (§9.5–9.6), and
+it is bypassed at edit time (§3.5), so it is not load-bearing for reconstruction *or* control.
 
 ### 3.4 Linear blend skinning + the edit handle
 `forward(...)` applies LBS over each Gaussian's `K` bound nodes:

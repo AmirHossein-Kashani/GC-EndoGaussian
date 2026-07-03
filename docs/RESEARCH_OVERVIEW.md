@@ -12,9 +12,10 @@ are authoritative). Companion docs: [paper.md](paper.md) (the submission paper) 
 We built **GC-EndoGaussian**, an **editable** sparse control-node graph deformation layer added on top
 of **EndoGaussian** (a 4D Gaussian Splatting method for dynamic endoscopic tissue reconstruction). A few
 thousand control nodes are seeded over the Gaussian cloud, each Gaussian is soft-bound to its nearest
-nodes, a message-passing graph network emits a per-node SE(3) transform per timestamp, and linear blend
+nodes, a small per-node network emits a per-node SE(3) transform per timestamp, and linear blend
 skinning propagates that node motion to the Gaussians — turning the base method's opaque deformation
-field into something a user can grab and drag.
+field into something a user can grab and drag. (The node network uses message passing by default, but we
+show that is *not* load-bearing — §5.5 — so we do not claim it as a contribution.)
 
 > **⚠️ Correction (supersedes earlier drafts of this document).** An earlier version of this project
 > claimed the learned control predicts tissue motion "2–4× more accurately than classical interpolation."
@@ -180,33 +181,30 @@ contribution.
 
 **Our deltas, ranked by defensibility:**
 
-1. **Zero-cost ADDITIVE integration over a strong continuous field.** SC-GS proposes a deformation
-   *method* in which the control points **are** the deformation. We instead **attach** the control graph
-   as an additive, quality-neutral layer **on top of an existing HexPlane-MLP field** (EndoGaussian), and
-   the engineering result is that this can be done at **+0.07% params, real-time, no extra training time,
-   and within ~0.15 dB**. This is a different and more modest claim than "a new deformation method," and
-   it is the strongest, most defensible delta.
+1. **Decontaminated controllability evaluation (the primary, most defensible delta).** The control-from-
+   tracks protocol + the finding that a naïve version is confounded by the model's own reconstruction, and
+   that once decontaminated no learned sparse control (ours or SC-GS) beats classical interpolation. This is
+   a methodology contribution that transfers to the whole editable-dynamic-Gaussian subfield (§5.3).
 
-2. **GNN coupling vs SC-GS's independent control points.** SC-GS's control points are **independent** (a
-   per-node MLP), coupled only *softly* through the ARAP loss; ours are coupled **inside the GNN forward
-   map** — a node's motion is conditioned on its neighborhood. Message passing helps **reconstruction**
-   (L=2 > L=0 by +0.18 dB on the gate). It does **not** help **controllability**: at edit time the control
-   is injected as a post-hoc node translation that bypasses the message passing (§5.3), so the GNN's benefit
-   is confined to training, and ours ties its own `gnn_layers=0` and SC-GS on the decontaminated metric.
+2. **Residual-centered ADDITIVE integration.** SC-GS makes the control points *be* the deformation
+   (replace-the-field); we instead **attach** control additively and **retain the base method's per-Gaussian
+   deformation as a residual**. A residual-matched ablation (§5.5) shows this is what keeps reconstruction at
+   parity (+0.07% params, real-time, ~0.15 dB) — a residual-free design loses ~0.5 dB / ~2× tracking. The
+   residual itself is EndoGaussian's, so this is an *integration* delta, not a new component.
 
 3. **Surgical domain.** Transfer to endoscopy: depth supervision, tool masks, single deforming tissue
    surface, plus a studied (optional) cut-aware mechanism for tissue cuts — adaptations SC-GS, targeting
    general dynamic scenes, does not address.
 
-4. **A decontaminated control-from-tracks evaluation (and a negative finding) — our most transferable
-   contribution.** We introduce a GT-backed control-prediction protocol on SuPer (four trials), and show
-   that a naïve form of it is **confounded by the model's own reconstruction**: a per-Gaussian residual
-   leaks learned motion into the apparent "control." Once decontaminated, learned sparse control — ours and
-   a retrained SC-GS baseline — does **not** beat classical interpolation (§5.3). On pure tracking fidelity
-   the graph is statistically equivalent to vanilla (pooled median RPE 3.30 vs 3.47 px, Wilcoxon p = 0.73);
-   a residual-matched SC-GS-style design matches us too (3.41 px), so the honest win is **cost-free
-   editability with the residual identified as the key ingredient**, not a superiority over SC-GS. The
-   leak-and-decontaminate lesson generalizes to anyone evaluating editable dynamic-Gaussians.
+**Not a delta (stated honestly): the GNN message passing.** We couple nodes through a small message-passing
+network, but a residual-matched, `gnn_layers=0` and GAT ablation (§5.5) shows the message passing is *not*
+load-bearing for reconstruction, and it is *bypassed* at edit time, so it does not help control either. We
+therefore do **not** claim it as a contribution.
+
+On pure tracking fidelity the editable layer is statistically equivalent to vanilla (pooled median RPE 3.30
+vs 3.47 px, Wilcoxon p = 0.73), and a residual-matched SC-GS-style design matches us too (3.41 px) — so the
+honest positive is **cost-free editability with the residual as the key ingredient**, not a superiority over
+SC-GS, and the primary contribution is the decontaminated evaluation above.
 
 **One-sentence novelty claim:** *We are not the first to control dynamic Gaussians with sparse handles
 (SC-GS is); our contribution is a practical, residual-centered recipe for attaching an editable sparse-control

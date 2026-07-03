@@ -14,9 +14,9 @@ manipulated. This precludes downstream uses that require *controlling* the recon
 interactive visualization, augmented-reality overlay, "what-if" inspection, and simulator/training-data
 generation. We present **GC-EndoGaussian**, which augments a 4D Gaussian reconstruction with a sparse
 **control-node graph**: a few thousand nodes are seeded over the Gaussian cloud, each Gaussian is
-soft-bound to its nearest nodes, a message-passing graph neural network (GNN) emits a per-node SE(3)
-transform per timestamp, and linear blend skinning (LBS) propagates node motion to the Gaussians, giving
-a user editable handles on the reconstruction. Our central result is a **cost-free integration recipe** —
+soft-bound to its nearest nodes, a small per-node network emits a per-node SE(3) transform per timestamp,
+and linear blend skinning (LBS) propagates node motion to the Gaussians, giving a user editable handles on
+the reconstruction. Our central result is a **cost-free integration recipe** —
 a translation-only control graph with a per-Gaussian residual and no coherence regularizers — that adds
 this editable control while **holding the base method's reconstruction and tracking quality at parity**:
 within **0.15 dB PSNR** (equal SSIM) on two datasets, at **205 FPS**, only **+0.07% parameters**, and **no
@@ -68,32 +68,29 @@ endoscopic reconstruction **without paying for it in reconstruction quality or r
 whether the resulting control can be *quantitatively validated* rather than shown only through qualitative
 edits.
 
-Our answer to the first question is affirmative; our answer to the second is a *cautionary finding*. Our
-contributions are:
+Our answer to the first question is affirmative; our answer to the second — and our **primary
+contribution** — is a rigorous evaluation and a cautionary finding. Our contributions are:
 
-1. **An editable deformation layer for endoscopic 4D Gaussian reconstruction.** A sparse control-node
-   graph with a message-passing GNN and LBS skinning that gives a user editable handles on the
-   reconstruction, integrated into an EndoGaussian pipeline (Sec. 3).
+1. **A rigorous control-from-tracks evaluation protocol (and a methodological caution) — our primary
+   contribution.** We introduce a ground-truth protocol that drives the control from a few annotated tissue
+   points and predicts held-out points on a real surgical-tracking dataset — a principled way to *measure*
+   controllability rather than demonstrate it. Its key lesson generalizes beyond our method: a naïve form of
+   the metric is **confounded by the model's own reconstruction**, and once **decontaminated**, learned
+   sparse control (ours and a retrained SC-GS baseline) does not outperform classical interpolation. We
+   report this openly, so the community can evaluate editable dynamic-Gaussian models correctly (Sec. 5.3).
 
-2. **A cost-free integration recipe, with the key ingredient isolated (our main positive result).** A naïve
-   control graph loses ~0.5 dB PSNR; we introduce a *translation-only + per-Gaussian-residual +
-   regularizer-free + frozen-node* recipe that **preserves reconstruction quality within 0.15 dB** on two
-   datasets, stays real-time (205 FPS), and costs only +0.07% parameters at no extra training time. A
-   **residual-matched ablation** pinpoints the **per-Gaussian residual** as the load-bearing ingredient: a
-   residual-free sparse-control design (SC-GS-style) loses ~0.5 dB / ~2× tracking, while a residual-matched
-   SC-GS-style design performs on par with ours. We therefore contribute a *practical, residual-centered
-   recipe* for reconstruction-neutral editing — not a superiority over SC-GS (Sec. 3.5, 5.1, 5.5).
+2. **A residual-centered integration recipe for cost-free editability.** Adding a sparse-control editing
+   layer to a strong endoscopic reconstruction can be done at **reconstruction/tracking parity** (within
+   0.15 dB PSNR, 205 FPS, +0.07% parameters, no extra training time). A **residual-matched ablation**
+   identifies the load-bearing ingredient: **retaining the base method's per-Gaussian deformation as a
+   residual** (rather than replacing the field, SC-GS-style) — a residual-free design loses ~0.5 dB / ~2×
+   tracking, while a residual-matched one performs on par (Sec. 3.5, 5.1, 5.5).
 
-3. **A rigorous control-from-tracks evaluation protocol (and a methodological caution).** We introduce a
-   ground-truth protocol that drives the control from a few annotated tissue points and predicts held-out
-   points on a real surgical-tracking dataset — a principled way to measure controllability rather than
-   demonstrate it. Its key lesson generalizes beyond our method: a naïve form of the metric is **confounded
-   by the model's own reconstruction**, and once **decontaminated**, learned sparse control (ours and a
-   retrained SC-GS baseline) does not outperform classical interpolation. We report this openly, so the
-   community can evaluate editable dynamic-Gaussian models correctly (Sec. 5.3).
-
-4. **An analysis of where a control graph helps and where it does not**, across standard, sparse-view,
-   occlusion, optical-flow, and cut modelling settings — a design-space map for practitioners (Sec. 5.5).
+3. **An editable deformation layer for endoscopic 4D Gaussian reconstruction.** A sparse control-node graph
+   (motion-seeded nodes, KNN soft-binding, LBS, and an edit handle) integrated additively into an
+   EndoGaussian pipeline (Sec. 3). The sparse-control-handles + LBS + editing paradigm follows SC-GS; our
+   focus is honest integration and evaluation, not a new editing primitive. A small per-node network
+   predicts node motion; we show its message passing is *not* load-bearing (Sec. 5.5).
 
 ---
 
@@ -112,15 +109,15 @@ K-nearest-control-point LBS, adaptively adjusts the control points, regularizes 
 possible (ARAP) loss, and enables motion editing by dragging control points. Related node/motion-graph
 methods (e.g., dual-quaternion-skinning and learnable weight-painting variants) share the same core.
 **We do not claim the sparse-control-handles + LBS + editing idea** — it is SC-GS's. Our contribution is
-different in three respects, detailed in Sec. 3 and 5: (i) we *attach* the control graph additively to a
-strong continuous field at essentially zero cost, rather than making the control points *be* the
-deformation; (ii) our control nodes are **coupled through a message-passing GNN** (SC-GS's points are
-independent, coupled only softly through the ARAP loss), and we deliberately *remove* coherence priors;
-and (iii) we adapt to the surgical domain and provide a **decontaminated controllability evaluation** —
-including the finding that, under a metric that truly isolates control, learned sparse control (ours and a
-retrained SC-GS) does *not* beat classical interpolation, a caution we return to in Sec. 5.3. We also
-reimplement SC-GS's core (independent control points + ARAP) in our pipeline as a learned baseline; our
-additive integration reconstructs markedly better than its replace-the-field design (Sec. 5.1, 5.3).
+different in two respects, detailed in Sec. 3 and 5: (i) we *attach* the control layer additively to a
+strong continuous field and show that **retaining the base per-Gaussian deformation as a residual** keeps
+reconstruction at parity, whereas replacing the field (SC-GS-style) costs fidelity; and (ii) we adapt to
+the surgical domain and provide a **decontaminated controllability evaluation** — including the finding
+that, under a metric that truly isolates control, learned sparse control (ours and a retrained SC-GS) does
+*not* beat classical interpolation, a caution we return to in Sec. 5.3. We reimplement SC-GS's core
+(independent control points + ARAP) as a learned baseline throughout. We deliberately do **not** claim the
+graph's message passing as a contribution: a residual-matched, message-passing ablation (Sec. 5.5) shows it
+is not load-bearing for either reconstruction or control.
 
 **Deformation representations.** Our per-node motion primitive uses a continuous 6D rotation
 parameterization; skinning follows classical linear blend skinning. Positional encodings and k-planes/
@@ -157,7 +154,7 @@ changes the Gaussian set.
    ----------------             -------------------
    canonical x_i  --bind(KNN)-->   node positions n_m
                                         |
-                             message-passing GNN(t)
+                          per-node SE(3) net(t)  [msg-passing not load-bearing, 5.5]
                                         |
                                per-node SE(3): R_m, t_m   <-- + edit handle (inference)
                                         |
@@ -170,17 +167,17 @@ changes the Gaussian set.
 *Figure 1. The control graph runs on the sparse node set; the only per-Gaussian operation is a cheap
 gather-and-blend, preserving real-time rendering.*
 
-### 3.3 Graph network and per-node SE(3)
+### 3.3 Per-node SE(3) network
 
-At each timestamp $t$ a message-passing GNN over the node K-nearest-neighbour graph predicts a per-node
-rigid transform. Node inputs are $h^0_m = \mathrm{MLP}([\gamma(n_m),\gamma(t)])$ with positional encoding
-$\gamma$. We use $L{=}2$ EdgeConv-style residual layers,
-$h^{l+1}_m = h^l_m + \phi\big(h^l_m,\ \mathrm{AGG}_{n\in\mathcal N(m)}\,\psi(h^l_m,h^l_n,\gamma(n_n-n_m))\big)$,
-so a node's motion is conditioned on its *neighbourhood* — the key architectural difference from
-independent per-node MLPs. A head emits three translation + six rotation values per node (continuous 6D
-rotation → matrix), initialized to the **identity transform** so deformation starts as an exact no-op.
-Because $M$ is small the GNN cost is negligible, and node identity is encoded by *position* (no per-node
-free parameters), so re-seeding never changes the learnable parameter set.
+At each timestamp $t$ a small per-node network predicts a per-node rigid transform from
+$h^0_m = \mathrm{MLP}([\gamma(n_m),\gamma(t)])$ (positional encoding $\gamma$). By default it is a 2-layer
+EdgeConv-style message-passing network over the node K-nearest-neighbour graph, but this is an
+implementation detail, **not a contribution**: a residual-matched ablation (Sec. 5.5) shows the message
+passing is *not* load-bearing for either reconstruction or control (a per-node MLP with no message passing,
+`gnn_layers=0`, performs on par), and GAT attention changes nothing. A head emits three translation + six
+rotation values per node (continuous 6D rotation → matrix), initialized to the **identity transform** so
+deformation starts as an exact no-op. Node identity is encoded by *position* (no per-node free parameters),
+so re-seeding never changes the learnable parameter set.
 
 ### 3.4 Skinning and the edit handle
 
