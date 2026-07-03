@@ -77,7 +77,10 @@ class Deformation(nn.Module):
             else:
                 rotations = rot_graph
             # Hybrid: small per-Gaussian residual recovers high-frequency detail on top of the graph.
-            if getattr(self.args, "node_hybrid", False):
+            # In control-only eval (control-from-tracks) the residual is ALSO frozen, so the prediction
+            # is purely control-driven and comparable across models (some baselines have no residual).
+            control_only = getattr(self.node_deform, "control_only", False)
+            if getattr(self.args, "node_hybrid", False) and not control_only:
                 if not self.args.no_dx:
                     pts = pts + self.pos_deform(hidden)
                 if not translation_only and not self.args.no_dr:

@@ -77,10 +77,14 @@ with the canonical rotation. A per-node **`edit_translation`** buffer (zero in t
 node's translation in `_run_gnn` — setting it at inference drags those nodes and the bound Gaussians
 follow. Non-finite outputs fall back to the canonical value so degeneracies never reach the rasterizer.
 
-### 3.5 The `control_only` eval guard
-For the controllability metric we must predict **purely from the control input**, not the learned field.
-`_run_gnn` checks `self.control_only`: when set, it returns `R = I` and `trans = edit_translation` (skips
-the learned SE(3)). This is the only behavioural change the metric introduces, and it is eval-only.
+### 3.5 The `control_only` eval guard (decontamination)
+For the controllability metric we must predict **purely from the control input**, not any learned field.
+Two eval-only guards, both gated on `control_only`:
+1. `_run_gnn` ([node_deformation.py](../scene/node_deformation.py)) returns `R = I`, `trans = edit_translation`
+   — freezes the graph's learned node motion.
+2. `forward_dynamic` ([deformation.py](../scene/deformation.py)) **also skips the hybrid per-Gaussian
+   residual** `pos_deform` — without this, the residual leaks learned reconstruction into the "control"
+   prediction and inflates the score by ~4 px (see §9.3). This second guard is the decontamination.
 
 ### 3.6 The *match* recipe (what makes it cost-free)
 Config [arguments/endonerf/pulling_graph_match_3k.py](../arguments/endonerf/pulling_graph_match_3k.py):
@@ -121,6 +125,12 @@ over the class defaults in [arguments/__init__.py](../arguments/__init__.py) via
 
 Shared base: `coarse_iterations=1000`, `iterations=3000` (fine), HexPlane
 `resolution=[64,64,64,100]`, `multires=[1,2,4,8]`, `net_width=32`, `defor_depth=0`.
+
+**SC-GS learned baseline** ([pulling_graph_scgs.py](../arguments/endonerf/pulling_graph_scgs.py)): a faithful
+SC-GS proxy via `gnn_layers=0` (independent control points), `node_translation_only`/`node_hybrid` at their
+`False` defaults (full SE(3), points-are-deformation), `lambda_arap=0.01` + `lambda_node_temporal=0.001`
+(ARAP coherence), `node_refresh_interval=1000` (adaptive nodes), `num_nodes=2048` (budget parity). All SC-GS
+ingredients are pre-existing, functional knobs — no new code.
 
 ---
 
@@ -205,12 +215,14 @@ python eval_tracking.py --model_path output/endonerf/super_match \
 ### 8.3 Control-from-tracks (main metric) — [eval_control.py](../eval_control.py)
 **Protocol** (per frame transition 0→f): split the GT points into `K` **handles** + held-out **targets**
 (handles chosen by FPS). Each handle's observed 3D motion (back-projected via the static-camera geometry)
-drives the `splat_k` control nodes nearest it; the learned field is **frozen** (`control_only`) so the
-prediction is a pure function of the control. The graph propagates the sparse control through LBS; we
-**predict the held-out points** and score reprojection error against their GT tracks.
-- **Baselines** through the same harness: `rigid` (single mean translation), `nearest` (nearest-handle
-  copy), `tps` (thin-plate-spline interpolation of handle displacements).
+drives the `splat_k` control nodes nearest it; **all learned motion is frozen** (`control_only`: node SE(3)
+*and* the hybrid residual — §3.5) so the prediction is a pure function of the control. The graph propagates
+the sparse control through LBS; we **predict the held-out points** and score reprojection error against GT.
+- **Baselines** through the same harness: `rigid`, `nearest` (nearest-handle copy), `tps`, and the retrained
+  **SC-GS-style** model (`super_t*_scgs`, [pulling_graph_scgs.py](../arguments/endonerf/pulling_graph_scgs.py)).
 - **Sweep + CV:** `K ∈ {4,8,16}`, **4-fold** leave-groups-out (rotate which points are handles).
+- **Decontamination is load-bearing:** the residual guard (§3.5) is what makes this measure control, not
+  reconstruction. Without it the number is ~4 px too optimistic (§9.3).
 ```
 python eval_control.py --model_path output/endonerf/super_match \
     --configs arguments/endonerf/pulling_graph_match_3k.py \
@@ -247,31 +259,34 @@ At the base 3000-iter budget the gap is ~0.27 dB and the extra iters recover onl
 | Deformation params | 85.29 M | 85.35 M (**+0.07%**) |
 | Training time | baseline | **unchanged** |
 
-### 9.3 Controllability — control-from-tracks (main result)
-**Per-trial (trial 3), median ± std over folds (px):**
-| K | **Ours (graph)** | Rigid | Nearest | TPS |
-|---|---|---|---|---|
-| 4 | **3.27 ± 0.14** | 7.36 | 6.68 | 12.34 |
-| 8 | **3.34 ± 0.20** | 7.01 | 5.81 | 7.39 |
-| 16 | **2.95** | 7.03 | 3.86 | 3.75 |
+### 9.3 Controllability — control-from-tracks (decontaminated; a negative finding)
 
-**GNN ablation (trial 3):** removing message passing (`gnn_layers=0`) degrades at every K — K4 3.27→3.54,
-K8 3.34→3.45, K16 **2.95→4.27**.
+**⚠️ Decontamination is essential.** A naïve control-from-tracks metric leaves the hybrid per-Gaussian
+residual active, which leaks *learned reconstruction* into the "control" prediction. Freezing it
+([deformation.py](../scene/deformation.py), `control_only` also skips `pos_deform`) is the honest metric.
+Effect on our own *match* model (cross-trial mean px):
 
-**Cross-trial mean (trials 3/4/8/9), median held-out error (px):**
-| K | **Ours (graph)** | Rigid | Nearest | TPS |
-|---|---|---|---|---|
-| 4 | **2.86** | 6.89 | 5.69 | 11.61\* |
-| 8 | **2.77** | 6.03 | 4.73 | 5.87 |
-| 16 | **2.92** | 6.24 | 3.97 | 3.45 |
+| K | Naïve (residual active) | **Decontaminated (control only)** | change |
+|---|---|---|---|
+| 4 | 2.86 | **6.82** | +3.96 |
+| 8 | 2.77 | **6.80** | +4.03 |
+| 16 | 2.92 | **8.09** | +5.17 |
+
+**Decontaminated comparison (cross-trial mean over trials 3/4/8/9, px; lower is better):**
+| K | Ours (control only) | SC-GS (learned) | Rigid | **Nearest** | TPS |
+|---|---|---|---|---|---|
+| 4 | 6.82 | 6.71 | 6.89 | **5.69** | 11.61\* |
+| 8 | 6.80 | 6.74 | 6.03 | **4.73** | 5.87 |
+| 16 | 8.09 | 8.06 | 6.24 | 3.97 | **3.45** |
 
 <sub>\*TPS undefined at K=4 on 2/4 trials (degenerate with 4 control points).</sub>
 
-**Reading:** the controller is nearly flat in K (2.77–2.92 px) while classical baselines degrade sharply as
-handles thin out → advantage largest in the clinically realistic sparse regime (~2× over nearest at K=4).
-As handles densify, the gap narrows; on the densest trial (51 pts) nearest-copy edges it. See Figure 4
-([figures/control_from_tracks_qual.png](figures/control_from_tracks_qual.png)) and Figure 5
-([figures/controllability_curve.png](figures/controllability_curve.png)).
+**Reading (honest):** under the decontaminated metric, learned sparse control (ours ≈ SC-GS) does **not**
+beat classical interpolation — nearest-handle wins at every K, and the learned methods are *worst* at K=16.
+The GNN gives no control advantage because `control_only` bypasses the message passing (the edit is a
+post-hoc node translation). The earlier "~2× over classical" was the residual leak, not a real property of
+the control. See Figure 4 (naïve vs decontaminated, same frame) and Figure 5 (decontaminated curve). The
+naïve numbers are preserved per-model in `control_results_residual.json`.
 
 ### 9.4 Tracking fidelity — statistically equivalent to baseline
 Median RPE **3.30 (ours) vs 3.47 (vanilla)** px, 95% CIs [3.14, 3.46] vs [3.34, 3.59], paired Wilcoxon
@@ -284,7 +299,26 @@ Median RPE **3.30 (ours) vs 3.47 (vanilla)** px, 95% CIs [3.14, 3.46] vs [3.34, 
 | 8 | 3.29 | 3.25 |
 | 9 | 1.62 | 1.79 |
 
-### 9.5 Integration modes & negative results
+### 9.5 Residual isolation — the residual-matched SC-GS ablation (key attribution)
+Which part of the recipe keeps editing reconstruction-neutral? Train SC-GS-style control (`gnn_layers=0`,
+full SE(3), ARAP) **with and without** the per-Gaussian residual ([pulling_graph_scgs.py](../arguments/endonerf/pulling_graph_scgs.py)
+vs [pulling_graph_scgs_hybrid.py](../arguments/endonerf/pulling_graph_scgs_hybrid.py)), 3000 iters
+([run_scgs_residual.bash](../run_scgs_residual.bash)):
+
+| Method | PSNR↑ (pulling) | SSIM↑ | LPIPS↓ | Track RPE↓ (SuPer t3) |
+|---|---|---|---|---|
+| vanilla (no editing) | 37.27 | 0.9578 | 0.0609 | 3.47 |
+| SC-GS-style, **no** residual | 36.80 | 0.9505 | 0.0885 | 7.02 |
+| SC-GS-style **+ residual** | **37.29** | 0.9570 | 0.0649 | 3.41 |
+| Ours (match) | 37.00 | 0.9559 | 0.0638 | 3.30 |
+
+**Finding:** the residual moves SC-GS-style from 36.80→37.29 dB and 7.02→3.41 px — on par with our match and
+with vanilla. The **per-Gaussian residual**, not the GNN or the specific integration choices, is what
+preserves fidelity; it transfers to either control architecture. So the honest claim is a *residual-centered
+recipe*, not a superiority over SC-GS. (Earlier drafts' "~0.7 dB / ~2× advantage over SC-GS" reflected a
+residual-free baseline — corrected here.)
+
+### 9.6 Integration modes & negative results
 | Method (pulling, 3000 iters) | PSNR↑ | SSIM↑ | LPIPS↓ | Depth-RMSE↓ |
 |---|---|---|---|---|
 | vanilla | 37.27 | 0.9578 | 0.0609 | 2.906 |
@@ -295,8 +329,8 @@ Median RPE **3.30 (ours) vs 3.47 (vanilla)** px, 95% CIs [3.14, 3.46] vs [3.34, 
 The *match* recipe (§3.6) closes almost all of this gap. **Where the graph does *not* help:**
 occlusion-holdout (26.00 vs 26.17 PSNR), optical-flow supervision (no gain), explicit cut-modelling
 (11.95 vs 11.88 at the cut, still below the 12.01 continuous field). A continuous HexPlane is already
-smooth/coherent, so the graph adds *constraint, not information* on reconstruction — its unique value is
-controllability under sparse supervision.
+smooth/coherent, so the graph adds *constraint, not information* on reconstruction, and (§9.3) not a
+controllability advantage either — its value is a cheap **editable handle at reconstruction parity**.
 
 ---
 
@@ -306,8 +340,8 @@ controllability under sparse supervision.
 |---|---|---|
 | Fig. 2 drag-to-edit | `figures/edit_{before,after,diff}.png` | gentle edit (`after_0`) + magnitude heatmap |
 | Fig. 3 pulling reconstruction | `figures/recon_pulling_triptych.png` | GT\|Ours\|error from render dumps |
-| Fig. 4 control-from-tracks (qual) | `figures/control_from_tracks_qual.png` | `eval_control --dump_frame -2`, representative frame (trial 3, f57) |
-| Fig. 5 controllability curve | `figures/controllability_curve.png` | 4-trial mean of `control_results.json` |
+| Fig. 4 decontamination (qual) | `figures/control_from_tracks_qual.png` | naïve (residual-active) vs decontaminated (control-only) at trial 3 f57; `control_viz{,_residual}.json` |
+| Fig. 5 decontaminated curve | `figures/controllability_curve.png` | 4-trial mean; learned (ours/SC-GS) vs classical + the naïve leak (dashed) |
 | Fig. 6 SuPer reconstruction | `figures/recon_super_t3_triptych.png` | GT\|Ours\|error |
 | GT-vs-Ours videos | `figures/recon_super_trial{3,4,8,9}_gt_vs_ours.mp4`, `recon_pulling_gt_vs_ours.mp4` | ffmpeg hstack of `ours_video.mp4` \| `gt_video.mp4` |
 
@@ -331,15 +365,21 @@ python eval_control.py  --model_path output/endonerf/super_match   --configs arg
 # 3. render + demo video
 python render.py --model_path output/endonerf/super_match --configs arguments/endonerf/pulling_graph_match_3k.py --iteration 3000 --skip_train --skip_test
 ```
-The multi-trial study is scripted in [run_gc_multitrial.bash](../run_gc_multitrial.bash) (trials 4/8/9);
-rendering in [run_super_render.bash](../run_super_render.bash); the Fig. 4 dump in
+The multi-trial study is scripted in [run_gc_multitrial.bash](../run_gc_multitrial.bash) (trials 4/8/9); the
+**SC-GS baseline** in [run_gc_scgs.bash](../run_gc_scgs.bash); the **decontaminated re-eval** in
+[run_control_fair.bash](../run_control_fair.bash); rendering in
+[run_super_render.bash](../run_super_render.bash); the Fig. 4 dumps in
 [run_control_viz.bash](../run_control_viz.bash). SLURM jobs use a single H100.
+
+> **Note on decontamination.** `control_results.json` holds the **decontaminated** (control-only) numbers;
+> the naïve residual-active numbers are preserved as `control_results_residual.json` per model. The guard
+> lives in [scene/deformation.py](../scene/deformation.py) (§3.5).
 
 ---
 
 ## 12. Artifacts
 
 `results_archive/endonerf/` holds the archived JSONs per run (`results.json`, `tracking_results.json`,
-`control_results.json`, `cfg_args`) for `super_match`, `super_match_nognn`, `super_vanilla`, and
-`super_t{4,8,9}_{match,vanilla}`. `output/` and `data/` are git-ignored and regenerated by the commands
-above.
+`control_results.json`, `cfg_args`) for `super_match`, `super_match_nognn`, `super_vanilla`,
+`super_t{4,8,9}_{match,vanilla}`, and the SC-GS baseline `super_t{3,4,8,9}_scgs`. `output/` and `data/` are
+git-ignored and regenerated by the commands above.
