@@ -107,8 +107,12 @@ class ModelHiddenParams(ParamGroup):
         self.node_knn=8            # node<->node graph degree
         self.gauss_knn_K=4         # each Gaussian binds to its K nearest nodes
         self.gnn_layers=2          # message-passing layers (0 = SC-GS-style per-node MLP ablation)
+        self.gnn_type='edgeconv'   # 'edgeconv' (mean aggregation) | 'gat' (attention aggregation)
         self.gnn_width=64
         self.node_pe=4             # positional-encoding frequencies for node xyz / edges / time
+        self.control_route=False   # route the edit as a GNN input (propagate control) vs post-hoc bypass
+        self.lambda_control=0.0    # weight of the control-consistency loss (only if control_route)
+        self.control_train_K=16    # #handle nodes sampled per iter for the control-consistency loss
         self.bind_sigma_scale=1.0  # softmax temperature scale for distance-based binding weights
         self.lambda_arap=0.01
         self.lambda_isometric=0.0     # as-isometric-as-possible edge-length prior (tissue resists stretch)

@@ -439,6 +439,12 @@ therefore to *identify and package* a residual-centered recipe that adds editing
 and useful, but a narrower claim than out-designing SC-GS. Message passing does not help reconstruction
 here either.
 
+**GNN aggregation (EdgeConv vs GAT).** As a further ablation we replace the EdgeConv mean aggregation
+(Sec. 3.3) with GAT-style attention over the node neighbourhood. It leaves every conclusion unchanged:
+reconstruction is within noise (37.17 vs 37.00 dB on `pulling`), tracking is tied (3.35 vs 3.30 px), and
+controllability remains below classical interpolation. The aggregation mechanism is not load-bearing —
+consistent with the finding that the residual, not the graph, carries fidelity.
+
 **Where the graph does not help.** For a complete design-space map: **occlusion-holdout** recovery
 (occluded-region PSNR 26.00 vs 26.17), **optical-flow supervision** (no gain; harmful at high weight), and
 an explicit **cut-modelling** mechanism (11.95 vs 11.88 PSNR at the cut, still below the 12.01 continuous

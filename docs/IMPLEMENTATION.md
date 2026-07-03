@@ -332,6 +332,13 @@ occlusion-holdout (26.00 vs 26.17 PSNR), optical-flow supervision (no gain), exp
 smooth/coherent, so the graph adds *constraint, not information* on reconstruction, and (§9.3) not a
 controllability advantage either — its value is a cheap **editable handle at reconstruction parity**.
 
+**GNN aggregation ablation (EdgeConv vs GAT).** Config
+[pulling_graph_gat.py](../arguments/endonerf/pulling_graph_gat.py) sets `gnn_type='gat'` (attention
+aggregation) instead of the default EdgeConv mean. Result: reconstruction 37.17 vs 37.00 dB (within noise),
+tracking tied (3.35 vs 3.30 px), controllability still below classical interpolation — the aggregation
+mechanism is not load-bearing. (`gnn_type` is a flag in [node_deformation.py](../scene/node_deformation.py);
+`'edgeconv'` is the default.)
+
 ---
 
 ## 10. Figures & videos

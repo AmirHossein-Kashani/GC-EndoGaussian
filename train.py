@@ -215,6 +215,22 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
                     anneal = max(0.2, 1.0 - iteration / float(final_iter))
                 loss = loss + anneal * gaussians.compute_node_regulation(
                     lambda_arap, lambda_node_temporal, lambda_isometric, viewpoint_cams[0].time)
+            # control-routing consistency: teach the GNN to PROPAGATE sparse control. Sample K handle
+            # nodes, feed their (frozen) learned motion as control input, and require the GNN to predict
+            # the held-out nodes' motion from that sparse control alone. Trains control-through-the-graph.
+            nd = gaussians._deformation.deformation_net.node_deform
+            lambda_ctrl = getattr(hyper, "lambda_control", 0.0)
+            if lambda_ctrl > 0 and getattr(nd, "control_route", False):
+                tt = float(viewpoint_cams[0].time)
+                _, t_full = nd._run_gnn(tt)                              # (M,3) learned node motion
+                Mn = t_full.shape[0]
+                Kc = max(1, int(getattr(hyper, "control_train_K", 16)))
+                perm = torch.randperm(Mn, device=t_full.device)
+                hmask = torch.zeros(Mn, dtype=torch.bool, device=t_full.device); hmask[perm[:Kc]] = True
+                e = torch.zeros_like(t_full); e[hmask] = t_full[hmask].detach()
+                _, t_ctrl = nd._run_gnn(tt, edit_input=e)                # predict full field from handles
+                held = ~hmask
+                loss = loss + lambda_ctrl * ((t_ctrl[held] - t_full[held].detach()) ** 2).sum(-1).mean()
         if flow_enabled and idx < len(viewpoint_stack) - 1 and flow_grids[idx] is not None:
             from utils.flow_utils import flow_warp
             img_next = render(viewpoint_stack[idx + 1], gaussians, pipe, background, stage=stage)["render"]

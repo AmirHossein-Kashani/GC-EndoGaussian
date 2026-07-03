@@ -130,6 +130,7 @@ class NodeGraphDeformation(nn.Module):
         self.node_knn = getattr(args, "node_knn", 8)
         self.gauss_knn_K = getattr(args, "gauss_knn_K", 4)
         self.gnn_layers = getattr(args, "gnn_layers", 2)
+        self.gnn_type = getattr(args, "gnn_type", "edgeconv")   # 'edgeconv' (mean agg) | 'gat' (attention agg)
         self.W = getattr(args, "gnn_width", 64)
         self.node_pe = getattr(args, "node_pe", 4)
         self.bind_sigma_scale = getattr(args, "bind_sigma_scale", 1.0)
@@ -144,12 +145,18 @@ class NodeGraphDeformation(nn.Module):
         edge_dim = 3 * (1 + 2 * self.node_pe)        # encoded relative edge vector
         self.edge_dim = edge_dim
 
+        # control_route: feed the per-node control signal (edit_translation) as an INPUT to the GNN, so
+        # message passing propagates sparse control through the graph (vs the default post-hoc translation
+        # that bypasses the GNN). Adds 3 input dims for the control vector.
+        self.control_route = getattr(args, "control_route", False)
+        in_dim = pos_dim + time_dim + (3 if self.control_route else 0)
         self.input_mlp = nn.Sequential(
-            nn.Linear(pos_dim + time_dim, self.W), nn.ReLU(),
+            nn.Linear(in_dim, self.W), nn.ReLU(),
             nn.Linear(self.W, self.W))
 
         self.msg_mlps = nn.ModuleList()
         self.upd_mlps = nn.ModuleList()
+        self.att_mlps = nn.ModuleList()   # GAT-style per-edge attention scorer (only used when gnn_type=='gat')
         for _ in range(self.gnn_layers):
             self.msg_mlps.append(nn.Sequential(
                 nn.Linear(2 * self.W + edge_dim, self.W), nn.ReLU(),
@@ -157,6 +164,8 @@ class NodeGraphDeformation(nn.Module):
             self.upd_mlps.append(nn.Sequential(
                 nn.Linear(2 * self.W, self.W), nn.ReLU(),
                 nn.Linear(self.W, self.W)))
+            # attention over the same [h_self, h_nbr, edge] context -> one logit per edge (GAT).
+            self.att_mlps.append(nn.Linear(2 * self.W + edge_dim, 1))
 
         # SE(3) head: 3 translation + 6D rotation. Initialised to the identity transform.
         self.se3_head = nn.Linear(self.W, 9)
@@ -210,20 +219,39 @@ class NodeGraphDeformation(nn.Module):
         return idx, w
 
     # ---- forward ----------------------------------------------------------------------
-    def _run_gnn(self, t, edge_gate=None):
-        """GNN at scalar time `t` with an optional per-edge gate (M,k); gate~0 cuts an edge's message."""
+    def _run_gnn(self, t, edge_gate=None, edit_input=None):
+        """GNN at scalar time `t` with an optional per-edge gate (M,k); gate~0 cuts an edge's message.
+        control_route: `edit_input` (M,3) sparse control fed as a node input (defaults to edit_translation)."""
         node_xyz = self.node_xyz
         M = node_xyz.shape[0]
         t_col = torch.full((M, 1), float(t), device=node_xyz.device, dtype=node_xyz.dtype)
         pos_enc = positional_encoding(node_xyz, self.node_pe)
         time_enc = positional_encoding(t_col, self.node_pe)
-        h = self.input_mlp(torch.cat([pos_enc, time_enc], dim=-1))   # (M,W)
+        feats = [pos_enc, time_enc]
+        if self.control_route:
+            if edit_input is not None:
+                e = edit_input
+            elif self.edit_translation.shape[0] == M:
+                e = self.edit_translation                            # (M,3) control signal
+            else:
+                e = torch.zeros(M, 3, device=node_xyz.device, dtype=node_xyz.dtype)
+            feats.append(e)
+        h = self.input_mlp(torch.cat(feats, dim=-1))                 # (M,W)
         nbr = self.node_neighbors                                    # (M,k)
         for layer in range(self.gnn_layers):
             h_nbr = h[nbr]                                           # (M,k,W)
             h_self = h.unsqueeze(1).expand(-1, nbr.shape[1], -1)     # (M,k,W)
-            msg = self.msg_mlps[layer](torch.cat([h_self, h_nbr, self.node_edge_enc], dim=-1))
-            if edge_gate is None:
+            ctx = torch.cat([h_self, h_nbr, self.node_edge_enc], dim=-1)
+            msg = self.msg_mlps[layer](ctx)
+            if self.gnn_type == "gat":
+                # GAT-style: attention weights over neighbours (softmax of LeakyReLU logits),
+                # optionally masked by the cut gate, then attention-weighted sum of messages.
+                logit = F.leaky_relu(self.att_mlps[layer](ctx), 0.2)  # (M,k,1)
+                if edge_gate is not None:
+                    logit = logit + torch.log(edge_gate.unsqueeze(-1).clamp_min(1e-6))
+                att = torch.softmax(logit, dim=1)                    # (M,k,1) over neighbours
+                agg = (msg * att).sum(dim=1)                         # (M,W)
+            elif edge_gate is None:
                 agg = msg.mean(dim=1)                               # (M,W) mean aggregation
             else:
                 g = edge_gate.unsqueeze(-1)                          # (M,k,1) gated aggregation
@@ -231,9 +259,13 @@ class NodeGraphDeformation(nn.Module):
             h = h + self.upd_mlps[layer](torch.cat([h, agg], dim=-1))
         se3 = torch.nan_to_num(self.se3_head(h))                     # (M,9), guard non-finite
         trans = se3[:, 0:3]
+        R = rotation_6d_to_matrix(se3[:, 3:9])                       # (M,3,3)
+        if self.control_route:
+            # control is routed THROUGH the GNN (fed as input above); the output already reflects the
+            # propagated control, so use it directly — no post-hoc add, no bypass.
+            return R, trans
         if self.edit_translation.shape == trans.shape:               # user edit handle (0 in training)
             trans = trans + self.edit_translation
-        R = rotation_6d_to_matrix(se3[:, 3:9])                       # (M,3,3)
         if getattr(self, "control_only", False):
             # eval-only (control-from-tracks): predict purely from the control handle, dropping the
             # learned per-node motion, so the metric isolates controllability (not reconstruction).
