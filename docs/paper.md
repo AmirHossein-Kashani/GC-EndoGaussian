@@ -32,7 +32,7 @@ interpolation — a useful caution for the editable dynamic-Gaussian literature.
 with VR/AR surgical-training applications that the editable layer enables.
 
 **Keywords:** surgical scene reconstruction · 4D Gaussian Splatting · editable deformation · controllability
-evaluation · graph neural networks · endoscopy
+evaluation · sparse control nodes · endoscopy
 
 ---
 

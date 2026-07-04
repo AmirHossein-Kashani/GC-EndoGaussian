@@ -71,7 +71,7 @@ preserving real-time rendering.
   ----------------            -------------------
   canonical xyz  --bind(KNN)-->  node positions
                                      |
-                          message-passing GNN(t)
+                  small per-node network(t)  [msg-passing not load-bearing, §4]
                                      |
                             per-node SE(3) (R, t)   <-- + edit_translation handle
                                      |
@@ -98,22 +98,21 @@ Gaussian's K weights sum to 1. A Gaussian therefore belongs to several handles, 
 deformation. Bindings are stored as per-Gaussian buffers and **rebuilt whenever the Gaussian set changes**
 (densification / pruning).
 
-### 3.4 Graph network and SE(3) head
+### 3.4 Per-node SE(3) network (message passing not load-bearing)
 
-Per timestamp `t`, a message-passing GNN over the node KNN graph produces a per-node transform:
+Per timestamp `t`, a small per-node network produces a per-node rigid transform — this is an
+**implementation detail, not a contribution** (see §4):
 
 1. Node input feature `h⁰_m = MLP([γ(n_m), γ(t)])`, with `γ` a positional encoding of node position and time.
-2. `L = 2` EdgeConv-style layers: `h^{l+1}_m = h^l_m + φ(h^l_m, AGG_n ψ(h^l_m, h^l_n, γ(n_n − n_m)))`,
-   with `ψ`, `φ` small MLPs and `AGG` a gated mean over neighbors — so a node's motion is conditioned on
-   its neighborhood.
+2. `L = 2` EdgeConv-style layers by default: `h^{l+1}_m = h^l_m + φ(h^l_m, AGG_n ψ(h^l_m, h^l_n, γ(n_n − n_m)))`.
+   **`gnn_layers=0` (no message passing) performs on par** (§5.5); GAT attention also makes no difference.
+   The message passing is not load-bearing for reconstruction or control.
 3. An **SE(3) head** emits 3 translation + 6D rotation values per node; the 6D rotation maps to a matrix
    (Zhou et al. continuity).
 
-Because `M ≈ 2k`, the GNN cost is negligible, and there are **no per-node free parameters** (node identity
-is encoded by position), so re-seeding / densification never changes the learnable parameter set. SE(3)
-math uses pure-PyTorch helpers (quaternion convention `(w,x,y,z)` matching the 3DGS rotation activation),
-and the head is **identity-initialized** (R=I, t=0) so deformation begins as an exact no-op and the fine
-stage starts from stable static geometry.
+Because `M ≈ 2k`, the network cost is negligible, and there are **no per-node free parameters** (node
+identity is encoded by position), so re-seeding / densification never changes the learnable parameter set.
+The head is **identity-initialized** (R=I, t=0) so deformation begins as an exact no-op.
 
 ### 3.5 LBS assembly
 
