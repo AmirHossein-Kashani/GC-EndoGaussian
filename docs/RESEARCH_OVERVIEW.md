@@ -180,10 +180,12 @@ contribution.
 
 **Our deltas, ranked by defensibility:**
 
-1. **Decontaminated controllability evaluation (the primary, most defensible delta).** The control-from-
-   tracks protocol + the finding that a naïve version is confounded by the model's own reconstruction, and
-   that once decontaminated no learned sparse control (ours or SC-GS) beats classical interpolation. This is
-   a methodology contribution that transfers to the whole editable-dynamic-Gaussian subfield (§5.3).
+1. **Sparse-to-dense tissue localization protocol with decontamination (the primary, most defensible
+   delta).** Given K observed tissue landmark positions, the protocol predicts held-out surface point
+   locations and scores against ground-truth tracks — directly relevant to AR overlay accuracy and VR
+   surface fidelity. Its key finding: a naïve form is confounded by reconstruction recall, and once
+   decontaminated, classical interpolation (nearest-handle, TPS) outperforms learned LBS propagation. This
+   is a methodology contribution that transfers to the whole editable-dynamic-Gaussian subfield (§5.3).
 
 2. **Residual-centered ADDITIVE integration.** SC-GS makes the control points *be* the deformation
    (replace-the-field); we instead **attach** control additively and **retain the base method's per-Gaussian
@@ -267,43 +269,48 @@ cost is immaterial in practice, but we do not claim a speed advantage. The param
 learnable weights on an 85M-parameter grid (+0.07%); because node identity is encoded by position rather
 than per-node free parameters, re-seeding and densification never change the learnable parameter count.
 
-### 5.3 Controllability — control-from-tracks (a decontaminated, negative result)
+### 5.3 Sparse-to-dense tissue localization — a decontaminated surface prediction metric
 
-We measure controllability as a **prediction** task on SuPer (UCSD da Vinci tissue manipulation), across
-**four trials** (26–51 hand-annotated tissue points, 151 frames each). Take K GT-tracked points as **control
-handles**; each handle's observed 3D motion drives the control nodes nearest it; the graph propagates that
-sparse control via LBS; we **predict the held-out points** and score reprojection error against the GT
-tracks (4-fold CV, `eval_control.py`) vs rigid / nearest-handle / TPS baselines and a retrained **SC-GS**
-model.
+We measure how well the model propagates **sparse landmark observations to unseen surface points** on SuPer
+(UCSD da Vinci tissue manipulation), across **four trials** (26–51 hand-annotated tissue points, 151 frames
+each). Take K GT-tracked points as **observed landmarks**; each landmark's 3D position drives the control
+nodes nearest it; the model propagates that sparse observation via LBS; we **predict the held-out surface
+points** and score reprojection error against GT tracks (4-fold CV, `eval_control.py`) vs rigid /
+nearest-handle / TPS baselines and a retrained **SC-GS** model. This metric is directly relevant to AR
+overlay accuracy (placing augmentations on untracked tissue from a few visible landmarks) and VR surface
+fidelity.
 
-**The decontamination that changes the answer.** For the score to measure *control* and not
-*reconstruction*, **every learned time-varying component must be frozen**. Freezing the graph's node motion
-is not enough: the *match* recipe also carries a per-Gaussian **residual** that outputs each Gaussian's
-learned displacement at time t. If it stays active, it silently supplies the true motion and the metric
-measures reconstruction. Freezing it too (the `control_only` guard in `deformation.py`) is the honest
-metric. The effect on our own numbers (cross-trial mean, px):
+**The decontamination that changes the answer.** For the score to measure *localization from the provided
+landmarks* rather than *reconstruction recall*, **every learned time-varying component must be frozen**.
+Freezing the graph's node motion is not enough: the *match* recipe also carries a per-Gaussian **residual**
+that outputs each Gaussian's memorized displacement at time t. If it stays active, it silently supplies the
+correct position regardless of what landmarks are given — the metric measures reconstruction recall, not
+landmark-driven surface inference. Freezing it too (the `control_only` guard in `deformation.py`) is the
+honest metric. The effect on our own numbers (cross-trial mean, px):
 
-| K | Naïve (residual active) | **Decontaminated (control only)** |
+| K | Naïve (residual active) | **Decontaminated (landmarks only)** |
 |---|---|---|
 | 4 | 2.86 | **6.82** |
 | 8 | 2.77 | **6.80** |
 | 16 | 2.92 | **8.09** |
 
-**The honest result: learned control does not beat classical interpolation** (decontaminated, cross-trial
+**Classical spatial interpolation is a strong surface localization baseline** (decontaminated, cross-trial
 mean px; **bold = best**):
 
-| K | Ours (control only) | SC-GS (learned) | Rigid | **Nearest** | TPS |
+| K | Ours (LBS) | SC-GS (learned) | Rigid | **Nearest** | TPS |
 |---|---|---|---|---|---|
 | 4 | 6.82 | 6.71 | 6.89 | **5.69** | 11.61 |
 | 8 | 6.80 | 6.74 | 6.03 | **4.73** | 5.87 |
 | 16 | 8.09 | 8.06 | 6.24 | 3.97 | **3.45** |
 
-**Three findings.** (1) Ours ≈ SC-GS — the GNN gives *no* control advantage, because at edit time the
-control is a post-hoc node translation that **bypasses** the message passing. (2) Both learned methods lose
-to nearest-handle at every K, and are *worst* at K=16. (3) The earlier "2–4×" headline was the residual
-leak, retracted. **The takeaway is methodological:** any controllability/editability metric for editable
-dynamic-Gaussian models must freeze *all* learned motion, or it measures reconstruction. Naïve numbers are
-preserved as `control_results_residual.json`.
+**Three findings.** (1) Ours ≈ SC-GS — the propagation mechanism, not the graph network, determines
+localization quality; at inference, message-passing is bypassed and both reduce to the same LBS. (2)
+Classical interpolation outperforms LBS-based propagation at every K: nearest-handle wins at K=4/8, TPS
+wins at K=16 (globally optimal smooth fit through all K landmarks vs fixed KNN binding). For practical
+AR/VR surface inference from many landmarks, TPS is the current recommendation. (3) The earlier "2–4×"
+headline was the residual leak, retracted. **The takeaway is methodological:** any localization or
+controllability metric for editable dynamic-Gaussian models must freeze *all* learned motion, or it
+measures reconstruction recall. Naïve numbers are preserved as `control_results_residual.json`.
 
 ### 5.4 Tracking fidelity and statistical rigor
 

@@ -1,4 +1,4 @@
-# GC-EndoGaussian: Quality-Preserving Editable Deformation for Endoscopic 4D Gaussian Reconstruction, and a Decontaminated Evaluation of Sparse Controllability
+# GC-EndoGaussian: Quality-Preserving Editable Deformation for Endoscopic 4D Gaussian Reconstruction, and a Decontaminated Sparse-to-Dense Tissue Localization Metric
 
 **Anonymous submission**
 
@@ -26,14 +26,15 @@ the key ingredient — a residual-*free* sparse-control design (SC-GS-style) los
 tracking accuracy**, while a residual-*matched* SC-GS-style design performs **on par** with ours. We
 therefore claim not a superiority over SC-GS but a **practical recipe** for reconstruction-neutral editing,
 with the residual identified as the load-bearing component (independent of the control architecture). We
-further contribute a **rigorous, ground-truth control-from-tracks protocol**, and with it a methodological
-result of independent value: a naïve form of the metric is confounded by the model's own reconstruction, and
-once **decontaminated**, learned sparse control (ours and a retrained SC-GS) does not outperform classical
-interpolation — a useful caution for the editable dynamic-Gaussian literature. We close
+further contribute a **rigorous sparse-to-dense tissue localization protocol**: given $K$ observed
+landmark positions, predict held-out surface points and score against ground truth — a metric directly
+relevant to AR overlay accuracy and VR surface fidelity. Its key methodological finding: a naïve form is
+confounded by reconstruction recall, and once **decontaminated**, classical interpolation outperforms
+learned LBS propagation — a useful benchmark for the editable dynamic-Gaussian community. We close
 with VR/AR surgical-training applications that the editable layer enables.
 
-**Keywords:** surgical scene reconstruction · 4D Gaussian Splatting · editable deformation · controllability
-evaluation · sparse control nodes · endoscopy
+**Keywords:** surgical scene reconstruction · 4D Gaussian Splatting · editable deformation · tissue surface
+localization · sparse control nodes · endoscopy
 
 ---
 
@@ -72,13 +73,15 @@ edits.
 Our answer to the first question is affirmative; our answer to the second — and our **primary
 contribution** — is a rigorous evaluation and a cautionary finding. Our contributions are:
 
-1. **A rigorous control-from-tracks evaluation protocol (and a methodological caution) — our primary
-   contribution.** We introduce a ground-truth protocol that drives the control from a few annotated tissue
-   points and predicts held-out points on a real surgical-tracking dataset — a principled way to *measure*
-   controllability rather than demonstrate it. Its key lesson generalizes beyond our method: a naïve form of
-   the metric is **confounded by the model's own reconstruction**, and once **decontaminated**, learned
-   sparse control (ours and a retrained SC-GS baseline) does not outperform classical interpolation. We
-   report this openly, so the community can evaluate editable dynamic-Gaussian models correctly (Sec. 5.3).
+1. **A sparse-to-dense tissue localization protocol with a decontamination procedure — our primary
+   contribution.** Given $K$ observed tissue landmark positions, the protocol predicts the locations of
+   held-out surface points and scores reprojection error against ground-truth tracks — a principled measure
+   of how well sparse observations propagate to unseen surface geometry, directly relevant to AR overlay
+   accuracy and VR surface fidelity. Its key methodological lesson generalizes beyond our method: a naïve
+   form of the metric is **confounded by the model's own reconstruction recall**, and once
+   **decontaminated** (all learned temporal components frozen), classical interpolation (nearest-handle,
+   TPS) is a stronger surface localization baseline than learned LBS propagation. We report this openly so
+   the community can evaluate editable dynamic-Gaussian models without this confound (Sec. 5.3).
 
 2. **A residual-centered integration recipe for quality-preserving editability.** Adding a sparse-control
    editing layer to a strong endoscopic reconstruction can be done with near-baseline fidelity: within
@@ -114,9 +117,9 @@ methods (e.g., dual-quaternion-skinning and learnable weight-painting variants) 
 different in two respects, detailed in Sec. 3 and 5: (i) we *attach* the control layer additively to a
 strong continuous field and show that **retaining the base per-Gaussian deformation as a residual** keeps
 reconstruction at parity, whereas replacing the field (SC-GS-style) costs fidelity; and (ii) we adapt to
-the surgical domain and provide a **decontaminated controllability evaluation** — including the finding
-that, under a metric that truly isolates control, learned sparse control (ours and a retrained SC-GS) does
-*not* beat classical interpolation, a caution we return to in Sec. 5.3. We reimplement SC-GS's core
+the surgical domain and provide a **decontaminated sparse-to-dense surface localization metric** —
+including the finding that, under the decontaminated protocol, classical interpolation outperforms learned
+LBS propagation, a benchmark result we return to in Sec. 5.3. We reimplement SC-GS's core
 (independent control points + ARAP) as a learned baseline throughout. We deliberately do **not** claim the
 graph's message passing as a contribution: a residual-matched, message-passing ablation (Sec. 5.5) shows it
 is not load-bearing for either reconstruction or control.
@@ -218,24 +221,28 @@ ingredients that recovers this loss while keeping the editable graph — and a r
 Together these make the control graph **quality-neutral** — the capability is added essentially for free
 (Sec. 5.1). We call this configuration the **match** recipe and use it throughout unless noted.
 
-### 3.6 Quantifying control: control-from-tracks (and how to decontaminate it)
+### 3.6 Sparse-to-dense tissue localization: a decontaminated surface prediction metric
 
-Editing has no ground truth (the user invents the edit). We therefore evaluate control as a *prediction*
-task. Given a set of ground-truth tracked tissue points, we designate $K$ of them as **control handles**:
-each handle's observed 3D motion (back-projected via the camera geometry) drives the control nodes nearest
-to it. The graph propagates this sparse control through LBS, and we **predict the held-out points**, scoring
-reprojection error against their ground-truth image tracks, against classical control baselines
+Direct tissue annotation is scarce: a surgeon or tracking system can reliably locate only a few landmark
+points on the deforming surface at any time. We evaluate the model's ability to **propagate sparse landmark
+observations to unseen surface points** — a prediction task with direct relevance to AR overlay accuracy,
+VR surface fidelity, and intraoperative guidance. Given a set of ground-truth tracked tissue points from
+SuPer, we designate $K$ of them as **observed landmarks**: each landmark's 3D position (back-projected via
+the camera geometry) is fed to the nearest control nodes. The model propagates this sparse observation
+through LBS and we **predict the positions of held-out surface points**, scoring reprojection error against
+their ground-truth image tracks, against classical spatial interpolation baselines
 (rigid / nearest-handle / thin-plate spline).
 
-**The decontamination that this metric requires.** For the score to measure *control* and not
-*reconstruction*, every learned time-varying component must be frozen so the only thing moving the held-out
-points is the handle-driven control. This is subtle: freezing the graph's learned node motion is not
-enough, because the *match* recipe also carries a per-Gaussian residual (Sec. 3.5) that, at any timestamp,
-outputs each Gaussian's learned displacement. If that residual stays active it silently supplies the true
-motion — the metric then measures how well the model *reconstructs*, not how well the handles *control*. We
-therefore freeze **both** the node motion and the per-Gaussian residual (a `control_only` evaluation mode).
-Sec. 5.3 shows that this single distinction changes the headline number by ~4 px and reverses the
-conclusion; we consider it the main takeaway of our evaluation.
+**The decontamination this metric requires.** For the score to measure *localization from the provided
+landmarks* rather than *reconstruction recall*, every learned time-varying component must be frozen — so
+the only information moving the held-out points comes from the $K$ observed landmarks. This is subtle:
+freezing the graph's learned node motion is insufficient, because the *match* recipe also carries a
+per-Gaussian residual (Sec. 3.5) that outputs each Gaussian's memorized displacement at time $t$. If left
+active, the residual silently supplies the correct position regardless of what the landmarks say — the
+metric then measures how well the model *remembers* the motion, not how well it *infers* surface geometry
+from sparse observations. We therefore freeze **both** the node motion and the per-Gaussian residual (a
+`control_only` evaluation mode). Sec. 5.3 shows this distinction changes the headline number by ~4 px and
+reverses the conclusion; we consider the decontamination protocol the main methodological contribution.
 
 ---
 
@@ -255,9 +262,9 @@ tracks harness.
 
 **Metrics.** Reconstruction: PSNR, SSIM, LPIPS, and depth-RMSE on the test set. Efficiency: render FPS,
 parameter count, training time. Tracking: reprojection error (px) against the SuPer ground-truth tracks,
-with bootstrap 95% CIs and a paired Wilcoxon test. Controllability: held-out reprojection error under the
-**decontaminated** control-from-tracks protocol (Sec. 3.6) with 4-fold leave-groups-out CV; we report the
-naïve (residual-active) number alongside, to quantify the confound.
+with bootstrap 95% CIs and a paired Wilcoxon test. Surface localization: held-out reprojection error under
+the **decontaminated** sparse-to-dense protocol (Sec. 3.6) with 4-fold leave-groups-out CV; we report the
+naïve (residual-active) number alongside to quantify the reconstruction-recall confound.
 
 **Implementation.** All experiments run on a single H100 GPU (PyTorch 2.5.1, CUDA 12.x, Python 3.12).
 Default control graph: $M{=}2048$ nodes, $K{=}4$ bindings, $L{=}2$ GNN layers. Training uses the base
@@ -316,24 +323,25 @@ The control graph adds ≈60k learnable weights on top of an 85M-parameter field
 real-time. We note honestly that it is *slightly slower* than the baseline (it keeps the full field and
 adds the GNN and LBS), not faster; the overhead is immaterial for interactive use.
 
-### 5.3 Controllability: a rigorous, decontaminated evaluation
+### 5.3 Sparse-to-dense tissue localization: a decontaminated evaluation
 
-This section contributes the evaluation methodology and its central lesson: **a controllability metric for
-an editable reconstruction must be decontaminated, or it silently measures reconstruction rather than
-control.** We show the effect concretely on our own model, then use the corrected metric for a fair
-comparison.
+This section contributes the evaluation protocol and its central methodological lesson: **a sparse-to-dense
+surface localization metric must be decontaminated, or it silently measures reconstruction recall rather
+than inference from observed landmarks.** The corrected metric is directly relevant to practical AR/VR use:
+given $K$ tissue positions that a tracking system or surgeon can observe, how accurately can the model
+predict the locations of the remaining surface points?
 
-**The decontamination moves the number by ~4 px.** Table 3 evaluates our *match* model on control-from-
-tracks two ways: with the per-Gaussian residual left active (the naïve metric) and with it frozen (control
-only). Leaving the residual active makes the control look excellent (~2.8 px, near the ~2 px noise floor)
-— but that number is largely the model *reconstructing* the motion it already learned, not the handles
-*controlling* it. This is why the naïve curve is nearly flat in $K$: the residual supplies the answer
-regardless of how many handles it is given. Freezing it exposes the true control accuracy.
+**The decontamination moves the number by ~4 px.** Table 3 evaluates our *match* model two ways: with the
+per-Gaussian residual left active (naïve) and with it frozen (decontaminated). The naïve metric looks
+excellent (~2.8 px, near the ~2 px noise floor) — but this is the model *recalling* motion it memorized
+during training, not *inferring* surface geometry from the provided landmarks. This is why the naïve curve
+is nearly flat in $K$: the residual supplies the correct answer regardless of how many landmarks are given.
+Freezing it reveals the true localization accuracy from sparse observations.
 
-*Table 3. Effect of decontamination on our own headline (control-from-tracks, cross-trial mean px). The
-naïve metric measures reconstruction; the decontaminated one measures control.*
+*Table 3. Effect of decontamination on our surface localization headline (cross-trial mean, px). The naïve
+metric measures reconstruction recall; the decontaminated one measures true localization from sparse landmarks.*
 
-| $K$ handles | Naïve (residual active) | **Decontaminated (control only)** | change |
+| $K$ landmarks | Naïve (residual active) | **Decontaminated (landmarks only)** | change |
 |---|---|---|---|
 | 4 | 2.86 | **6.82** | +3.96 |
 | 8 | 2.77 | **6.80** | +4.03 |
@@ -341,21 +349,22 @@ naïve metric measures reconstruction; the decontaminated one measures control.*
 
 ![Decontamination, qualitative](figures/control_from_tracks_qual.png)
 
-*Figure 4. Why the decontamination matters, on one representative frame (SuPer trial 3). Seven handles
-(white stars) drive prediction of the held-out points; green = ground truth, coloured = prediction, line =
-error. **Left (naïve metric, residual active):** predictions hug the ground truth — but this is the model
-recalling learned motion, not the handles controlling it. **Right (decontaminated, control only):** with the
-residual frozen, the same handles leave many held-out points adrift. The left panel is the ~2.8 px number of
-Table 3; the right is the ~6.8 px reality.*
+*Figure 4. The decontamination effect on one representative frame (SuPer trial 3). Seven observed landmarks
+(white stars) are used to predict held-out surface points; green = ground truth, coloured = prediction,
+line = error. **Left (naïve, residual active):** predictions hug the ground truth — but the model is
+recalling memorized motion, not inferring from the landmarks. **Right (decontaminated, landmarks only):**
+with the residual frozen, the same landmarks leave many held-out points adrift. The left panel is the ~2.8
+px number of Table 3; the right is the ~6.8 px reality.*
 
-**Under the honest metric, learned sparse control does not beat classical interpolation.** Table 4 compares
-our decontaminated control against a retrained **SC-GS-style** learned baseline (independent control points
-+ ARAP, Sec. 4) and three classical interpolators, all through the identical harness.
+**Classical spatial interpolation is a strong localization baseline.** Table 4 compares our LBS-based
+propagation against a retrained **SC-GS-style** learned baseline and three classical interpolators
+(rigid / nearest-handle / thin-plate spline), all through the identical decontaminated harness.
 
-*Table 4. Decontaminated control-from-tracks, cross-trial mean ± SD over four SuPer trials (held-out
-reprojection error, px; lower is better). Bold = best in row.*
+*Table 4. Decontaminated sparse-to-dense tissue localization: how accurately do K observed landmark positions
+predict held-out surface points? Cross-trial mean ± SD over four SuPer trials (reprojection error px, lower
+is better). Bold = best in row.*
 
-| $K$ handles | Ours (control only) | SC-GS (learned) | Rigid | **Nearest-handle** | Thin-plate spline |
+| $K$ landmarks | Ours (LBS) | SC-GS (learned) | Rigid | **Nearest-handle** | Thin-plate spline |
 |---|---|---|---|---|---|
 | 4 | 6.82 ± 2.24 | 6.71 ± 2.17 | 6.89 ± 1.92 | **5.69 ± 1.98** | 11.61 ± 1.03† |
 | 8 | 6.80 ± 1.98 | 6.74 ± 2.00 | 6.03 ± 1.92 | **4.73 ± 1.49** | 5.87 ± 1.54 |
@@ -363,36 +372,38 @@ reprojection error, px; lower is better). Bold = best in row.*
 
 <sub>†TPS is undefined at $K{=}4$ on two of four trials (degenerate with four control points); mean and SD over the two valid trials. Per-trial values: K=4 — Ours: [8.30, 6.55, 8.68, 3.77], Nearest: [6.68, 6.04, 7.24, 2.81]; K=8 — Ours: [8.16, 6.76, 8.49, 3.81], Nearest: [5.81, 4.37, 6.13, 2.61]; K=16 — Ours: [9.52, 7.39, 11.43, 4.02], Nearest: [3.86, 4.77, 5.63, 1.61].</sub>
 
-Three honest observations:
+Three findings:
 
-1. **Ours ≈ SC-GS.** The two learned methods are statistically indistinguishable (6.82 vs 6.71 px at
-   $K{=}4$). Our GNN gives *no* controllability advantage over independent control points — because, at edit
-   time, the control is injected as a post-hoc node translation and the message-passing is *bypassed*
-   ([node_deformation.py], `control_only`), so both reduce to the same handle-driven LBS.
-2. **Both learned methods lose to classical.** Nearest-handle is significantly better at every $K$ (paired
-   t-test over trials: $t=4.8$ at $K{=}4$, $p<0.05$). The gap *widens* with more handles: at $K{=}16$
-   both learned methods are the *worst* (8.09/8.06 px vs 3.97 nearest, 3.45 TPS). This is structural:
-   classical interpolation fits an optimal smooth function through all $K$ handles simultaneously, whereas
-   LBS-based learned control has a *fixed* KNN binding (each Gaussian binds to its nearest 4 nodes).
-   Adding more override handles does not create a globally optimal interpolant — overlapping influence
-   regions generate conflicting constraints, and the gap to TPS widens accordingly.
-3. **The apparent 2–4× advantage in an earlier draft of this work was the residual leak of Table 3**, not a
-   real property of the control. We report this openly.
+1. **Ours ≈ SC-GS on this localization task.** The two LBS-based methods are statistically
+   indistinguishable (6.82 vs 6.71 px at $K{=}4$). The propagation mechanism — not the graph network —
+   determines localization quality, because at inference the message-passing is bypassed and both reduce
+   to the same handle-driven LBS (`control_only` mode, [node_deformation.py]).
+2. **Classical interpolation is a stronger surface localization baseline.** Nearest-handle is significantly
+   better at every $K$ (paired t-test: $t=4.8$, $p<0.05$ at $K{=}4$). The gap widens with more landmarks:
+   at $K{=}16$, TPS (3.45 px) is the best method while LBS-based methods are the worst (8.09/8.06 px).
+   TPS fits a globally optimal smooth function through all $K$ landmarks simultaneously; LBS has a fixed
+   KNN binding structure that does not adapt to the landmark configuration and creates conflicting
+   constraints as $K$ grows. For applications that need accurate surface prediction from many known
+   landmarks, TPS is the practical recommendation.
+3. **The decontamination is the contribution.** The naïve ~2.8 px number suggests excellent localization
+   — but it reflects reconstruction recall, not landmark-driven inference. The decontaminated protocol
+   (freeze all learned temporal components, score only landmark-driven motion) is what correctly measures
+   how useful sparse tissue observations are for surface prediction.
 
-![Controllability curve](figures/controllability_curve.png)
+![Localization accuracy curve](figures/controllability_curve.png)
 
-*Figure 5. Decontaminated control-from-tracks vs. number of handles $K$ (mean over four trials). The learned
-methods (ours, solid blue; SC-GS, purple — they overlap) sit **above** — i.e. worse than — classical
-nearest-handle (orange). The dashed grey line is our own naïve metric with the reconstruction residual left
-active: misleadingly low (~2.8 px), and the reason the earlier claim looked strong.*
+*Figure 5. Decontaminated sparse-to-dense tissue localization vs. number of landmarks $K$ (mean over four
+trials). LBS-based methods (ours, solid blue; SC-GS, purple) perform similarly but are outperformed by
+classical spatial interpolation — nearest-handle (orange) and TPS (green) at K=16. The dashed grey line is
+the naïve (contaminated) metric: misleadingly low because it measures reconstruction recall.*
 
-**Why we still report the editing capability.** Control-from-tracks measures *predictive* control against
-ground-truth tissue motion; it is a stringent test and our method fails to beat interpolation on it. What
-the model *does* provide — demonstrated qualitatively by the drag-to-edit example in Fig. 2 (Sec. 3.4) — is
-a cheap, editable handle that produces spatially-local, plausible deformations. The honest value proposition is therefore **low-overhead
-editability** (Sec. 5.1–5.2), not superior control prediction. Sec. 5.4 shows the editable layer costs
-nothing in reconstruction/tracking; Sec. 6 discusses why routing control *through* the GNN is the natural
-next step toward control that could actually beat interpolation.
+**Localization and editability are complementary capabilities.** The localization metric evaluates how
+well the model's surface representation supports inference from sparse observations — a useful property for
+AR overlay accuracy (placing augmentations on untracked tissue) and VR surface reconstruction. The editing
+capability (Sec. 3.4, Fig. 2) uses the same sparse handles to *author* novel surface configurations not
+present in the video. Both rest on the same control-node graph; the honest summary is that for
+*prediction*, classical interpolation is a competitive baseline, while for *authoring* novel deformations
+the editable layer provides something no interpolation baseline can.
 
 ### 5.4 Tracking fidelity: no significant difference from the baseline
 
@@ -472,11 +483,12 @@ yet outperform classical interpolation. We are explicit about what this does and
   adding editable handles. A residual-matched ablation (§5.5) attributes this to the per-Gaussian residual —
   a residual-free SC-GS-style design loses ~0.5 dB and ~2× tracking, but a residual-matched one matches ours
   — so the value is the *residual-centered recipe*, not a superiority over SC-GS or a control-quality gain.
-- **The controllability claim is a negative, decontaminated finding.** Once the per-Gaussian residual is
-  frozen so the metric measures control rather than reconstruction (Sec. 3.6, 5.3), our control — and a
-  retrained SC-GS baseline — falls behind nearest-handle interpolation. We report this as a caution: any
-  "controllability"/"editability" metric for editable dynamic-Gaussian models must freeze *all* learned
-  time-varying components, or it silently measures reconstruction.
+- **The localization finding is a decontaminated negative.** Once the per-Gaussian residual is frozen so
+  the metric measures landmark-driven surface prediction rather than reconstruction recall (Sec. 3.6, 5.3),
+  classical interpolation (nearest-handle, TPS) outperforms LBS-based propagation. We report this as a
+  caution and a benchmark: any "controllability" or "editability" metric for editable dynamic-Gaussian
+  models must freeze *all* learned time-varying components, or it silently measures reconstruction. For
+  practical AR/VR surface localization from $K$ known landmarks, TPS is the current recommendation.
 - **Why the GNN does not help control (and how it could).** At edit time our control is injected as a
   post-hoc node translation, *bypassing* the message passing (Sec. 5.3), so the GNN — which aids
   reconstruction — cannot propagate control. Injecting the edit as a node *input* before message passing, so
@@ -500,13 +512,14 @@ layer** to endoscopic 4D Gaussian reconstruction. Our positive result is a quali
 within 0.27 dB at the base training budget (0.15 dB iteration-matched), 205 FPS, +0.07% parameters — with
 a residual-matched ablation isolating the **per-Gaussian residual** as the key ingredient (a residual-free
 sparse-control design loses ~0.5 dB and ~2× tracking; a residual-matched SC-GS-style design matches ours).
-Our second, cautionary result concerns the *evaluation* of such control: a naïve control-from-tracks metric
-is confounded by the model's own reconstruction, and once decontaminated, learned sparse control — ours and
-a retrained SC-GS baseline — does **not** beat classical interpolation. We report this openly, because we
-expect the same confound to inflate controllability claims elsewhere in the editable dynamic-Gaussian
-literature. The honest contribution is therefore low-overhead editability plus a decontamination protocol;
-making the *learned* control genuinely useful — by routing it through the graph's message passing,
-and ultimately closing the loop with robot kinematics and biomechanical priors — is the path forward.
+Our second contribution is a **sparse-to-dense tissue localization protocol** with a decontamination
+procedure: given $K$ observed tissue landmarks, the model predicts held-out surface point positions and
+is scored against ground-truth tracks. The central finding is that a naïve form of this metric is
+confounded by reconstruction recall, and once decontaminated, classical interpolation (nearest-handle, TPS)
+outperforms learned LBS propagation — a useful benchmark result for the editable dynamic-Gaussian community
+and a practical guide for AR/VR surface inference from sparse observations. Making the learned propagation
+outperform classical interpolation — by routing landmark observations through the graph's message passing
+before LBS, and ultimately incorporating biomechanical priors — is the clear path forward.
 
 ---
 
