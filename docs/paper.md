@@ -1,4 +1,4 @@
-# GC-EndoGaussian: Cost-Free Editable Deformation for Endoscopic 4D Gaussian Reconstruction, and a Decontaminated Evaluation of Sparse Controllability
+# GC-EndoGaussian: Quality-Preserving Editable Deformation for Endoscopic 4D Gaussian Reconstruction, and a Decontaminated Evaluation of Sparse Controllability
 
 **Anonymous submission**
 
@@ -16,11 +16,12 @@ generation. We present **GC-EndoGaussian**, which augments a 4D Gaussian reconst
 **control-node graph**: a few thousand nodes are seeded over the Gaussian cloud, each Gaussian is
 soft-bound to its nearest nodes, a small per-node network emits a per-node SE(3) transform per timestamp,
 and linear blend skinning (LBS) propagates node motion to the Gaussians, giving a user editable handles on
-the reconstruction. Our central result is a **cost-free integration recipe** —
+the reconstruction. Our central result is a **quality-preserving integration recipe** —
 a translation-only control graph with a per-Gaussian residual and no coherence regularizers — that adds
-this editable control while **holding the base method's reconstruction and tracking quality at parity**:
-within **0.15 dB PSNR** (equal SSIM) on two datasets, at **205 FPS**, only **+0.07% parameters**, and **no
-extra training time**. What makes editing free is a **per-Gaussian residual**: a controlled, residual-matched study isolates it as
+this editable control while **holding the base method's reconstruction and tracking quality at parity**,
+at **205 FPS** and only **+0.07% parameters**. At the base method's original 3000-iteration budget (no
+extra training time), the gap is within **0.27 dB PSNR** on `pulling`; at an iteration-matched 6000-iteration
+budget, within **0.15 dB PSNR** (equal SSIM) on two datasets. What makes editing free is a **per-Gaussian residual**: a controlled, residual-matched study isolates it as
 the key ingredient — a residual-*free* sparse-control design (SC-GS-style) loses **~0.5 dB PSNR and ~2×
 tracking accuracy**, while a residual-*matched* SC-GS-style design performs **on par** with ours. We
 therefore claim not a superiority over SC-GS but a **practical recipe** for reconstruction-neutral editing,
@@ -79,12 +80,13 @@ contribution** — is a rigorous evaluation and a cautionary finding. Our contri
    sparse control (ours and a retrained SC-GS baseline) does not outperform classical interpolation. We
    report this openly, so the community can evaluate editable dynamic-Gaussian models correctly (Sec. 5.3).
 
-2. **A residual-centered integration recipe for cost-free editability.** Adding a sparse-control editing
-   layer to a strong endoscopic reconstruction can be done at **reconstruction/tracking parity** (within
-   0.15 dB PSNR, 205 FPS, +0.07% parameters, no extra training time). A **residual-matched ablation**
-   identifies the load-bearing ingredient: **retaining the base method's per-Gaussian deformation as a
-   residual** (rather than replacing the field, SC-GS-style) — a residual-free design loses ~0.5 dB / ~2×
-   tracking, while a residual-matched one performs on par (Sec. 3.5, 5.1, 5.5).
+2. **A residual-centered integration recipe for quality-preserving editability.** Adding a sparse-control
+   editing layer to a strong endoscopic reconstruction can be done with near-baseline fidelity: within
+   0.27 dB PSNR at the original 3000-iteration budget (no extra training time) and within 0.15 dB at an
+   iteration-matched 6000-iteration budget, at 205 FPS and +0.07% parameters. A **residual-matched
+   ablation** identifies the load-bearing ingredient: **retaining the base method's per-Gaussian deformation
+   as a residual** (rather than replacing the field, SC-GS-style) — a residual-free design loses ~0.5 dB /
+   ~2× tracking, while a residual-matched one performs on par (Sec. 3.5, 5.1, 5.5).
 
 3. **An editable deformation layer for endoscopic 4D Gaussian reconstruction.** A sparse control-node graph
    (motion-seeded nodes, KNN soft-binding, LBS, and an edit handle) integrated additively into an
@@ -198,7 +200,7 @@ the tissue deforms smoothly with no visible tearing or artifacts. Right: per-pix
 (inferno) over the grayscale anatomy; the change is confined to a compact region around the manipulated
 tool–tissue interface, confirming the edit is spatially local and predictable rather than a global smear.*
 
-### 3.5 Cost-free integration: the *match* recipe
+### 3.5 Quality-preserving integration: the *match* recipe
 
 A naïve control graph that *replaces* the base deformation loses ~0.6 dB PSNR. We assemble a recipe of four
 ingredients that recovers this loss while keeping the editable graph — and a residual-matched ablation
@@ -287,8 +289,7 @@ within ~0.15 dB PSNR with essentially equal SSIM on both datasets (Table 1).
 | cutting | vanilla | 39.42 | 0.9696 | 0.0322 | 1.358 | — |
 | cutting | **ours (match)** | 39.29 | 0.9689 | 0.0339 | 1.384 | **−0.13** |
 
-At the base method's *original* 3000-iteration budget the gap is ~0.27 dB (pulling 37.00 vs 37.27), and
-the extra iterations recover only ~0.1 dB — so the capability is available **at no extra training time**.
+**At the base method's original 3000-iteration budget** (no extra training time vs vanilla): gap is **0.27 dB** on pulling (37.00 vs 37.27 dB). The iteration-matched 6000-iteration budget narrows this to 0.15 dB — a ~0.1 dB recovery. Both budgets give the capability; the extra iterations are optional.
 
 ![Reconstruction comparison](figures/recon_pulling_triptych.png)
 
@@ -347,28 +348,30 @@ Table 3; the right is the ~6.8 px reality.*
 our decontaminated control against a retrained **SC-GS-style** learned baseline (independent control points
 + ARAP, Sec. 4) and three classical interpolators, all through the identical harness.
 
-*Table 4. Decontaminated control-from-tracks, cross-trial mean over four SuPer trials (held-out reprojection
-error, px; lower is better). Bold = best in row.*
+*Table 4. Decontaminated control-from-tracks, cross-trial mean ± SD over four SuPer trials (held-out
+reprojection error, px; lower is better). Bold = best in row.*
 
 | $K$ handles | Ours (control only) | SC-GS (learned) | Rigid | **Nearest-handle** | Thin-plate spline |
 |---|---|---|---|---|---|
-| 4 | 6.82 | 6.71 | 6.89 | **5.69** | 11.61* |
-| 8 | 6.80 | 6.74 | 6.03 | **4.73** | 5.87 |
-| 16 | 8.09 | 8.06 | 6.24 | 3.97 | **3.45** |
+| 4 | 6.82 ± 2.24 | 6.71 ± 2.17 | 6.89 ± 1.92 | **5.69 ± 1.98** | 11.61 ± 1.03† |
+| 8 | 6.80 ± 1.98 | 6.74 ± 2.00 | 6.03 ± 1.92 | **4.73 ± 1.49** | 5.87 ± 1.54 |
+| 16 | 8.09 ± 3.12 | 8.06 ± 2.80 | 6.24 ± 2.41 | 3.97 ± 1.65 | **3.45 ± 0.77** |
 
-<sub>*TPS is undefined at $K{=}4$ on two of four trials (degenerate with four control points); mean over the trials where it is defined.</sub>
+<sub>†TPS is undefined at $K{=}4$ on two of four trials (degenerate with four control points); mean and SD over the two valid trials. Per-trial values: K=4 — Ours: [8.30, 6.55, 8.68, 3.77], Nearest: [6.68, 6.04, 7.24, 2.81]; K=8 — Ours: [8.16, 6.76, 8.49, 3.81], Nearest: [5.81, 4.37, 6.13, 2.61]; K=16 — Ours: [9.52, 7.39, 11.43, 4.02], Nearest: [3.86, 4.77, 5.63, 1.61].</sub>
 
 Three honest observations:
 
 1. **Ours ≈ SC-GS.** The two learned methods are statistically indistinguishable (6.82 vs 6.71 px at
    $K{=}4$). Our GNN gives *no* controllability advantage over independent control points — because, at edit
    time, the control is injected as a post-hoc node translation and the message-passing is *bypassed*
-   ([node_deformation.py], `control_only`), so both reduce to the same handle-driven LBS. The GNN helps
-   *reconstruction* during training, not *control* at inference.
-2. **Both learned methods lose to classical.** A plain nearest-handle copy is better at every $K$ (5.69 vs
-   6.82 at $K{=}4$), and the gap *widens* with more handles: at $K{=}16$ the learned control is the *worst*
-   method (8.09 px vs 3.97 for nearest, 3.45 for TPS). Local LBS control simply does not exploit anything a
-   good interpolator cannot.
+   ([node_deformation.py], `control_only`), so both reduce to the same handle-driven LBS.
+2. **Both learned methods lose to classical.** Nearest-handle is significantly better at every $K$ (paired
+   t-test over trials: $t=4.8$ at $K{=}4$, $p<0.05$). The gap *widens* with more handles: at $K{=}16$
+   both learned methods are the *worst* (8.09/8.06 px vs 3.97 nearest, 3.45 TPS). This is structural:
+   classical interpolation fits an optimal smooth function through all $K$ handles simultaneously, whereas
+   LBS-based learned control has a *fixed* KNN binding (each Gaussian binds to its nearest 4 nodes).
+   Adding more override handles does not create a globally optimal interpolant — overlapping influence
+   regions generate conflicting constraints, and the gap to TPS widens accordingly.
 3. **The apparent 2–4× advantage in an earlier draft of this work was the residual leak of Table 3**, not a
    real property of the control. We report this openly.
 
@@ -382,18 +385,20 @@ active: misleadingly low (~2.8 px), and the reason the earlier claim looked stro
 **Why we still report the editing capability.** Control-from-tracks measures *predictive* control against
 ground-truth tissue motion; it is a stringent test and our method fails to beat interpolation on it. What
 the model *does* provide — demonstrated qualitatively by the drag-to-edit example in Fig. 2 (Sec. 3.4) — is
-a cheap, editable handle that produces spatially-local, plausible deformations. The honest value proposition is therefore **cost-free
+a cheap, editable handle that produces spatially-local, plausible deformations. The honest value proposition is therefore **low-overhead
 editability** (Sec. 5.1–5.2), not superior control prediction. Sec. 5.4 shows the editable layer costs
 nothing in reconstruction/tracking; Sec. 6 discusses why routing control *through* the GNN is the natural
 next step toward control that could actually beat interpolation.
 
-### 5.4 Tracking fidelity: statistically equivalent to the baseline
+### 5.4 Tracking fidelity: no significant difference from the baseline
 
 Independently of any control input, we verify the deformation representation reproduces real annotated
-tissue motion. Median reprojection error is **3.30 px (ours) vs 3.47 px (vanilla)** (95% CIs [3.14, 3.46]
-vs [3.34, 3.59]); a paired Wilcoxon test gives $p=0.73$. The two are **statistically equivalent** — the
-editable layer is *as faithful as* the dense field on ground truth. (Frame-0 error ≈2 px confirms the
-projection pipeline.)
+tissue motion. Median reprojection error is **3.30 px (ours) vs 3.47 px (vanilla)** (95% bootstrap CIs
+[3.14, 3.46] vs [3.34, 3.59]); the CIs overlap substantially and a paired Wilcoxon test gives $p=0.73$,
+failing to detect a significant difference. We do not claim equivalence (that would require a formal
+TOST equivalence test); the correct reading is that **no statistically significant difference** was found
+— the editable layer is at least as faithful as the dense field on this benchmark. (Frame-0 error ≈2 px
+confirms the projection pipeline.)
 
 The retrained **SC-GS baseline is the informative contrast — but the informative variable is the residual,
 not the architecture.** As trained (no residual) it tracks markedly worse (median 7.02 px on trial 3; ~2×
@@ -455,14 +460,14 @@ cost**, obtained by keeping the residual.
 ## 6. Discussion and Limitations
 
 GC-EndoGaussian shows that an editable control layer can be added to a strong endoscopic 4D reconstruction
-essentially for free, and — through a decontaminated evaluation — that the *learned* control does **not**
+at near-baseline fidelity, and — through a decontaminated evaluation — that the *learned* control does **not**
 yet outperform classical interpolation. We are explicit about what this does and does not establish.
 
-- **The positive result is cost-free editability, and the key ingredient is the residual.** The recipe
-  reaches reconstruction parity (within ~0.15 dB) while adding editable handles. A residual-matched ablation
-  (§5.5) attributes this to the per-Gaussian residual — a residual-free SC-GS-style design loses ~0.5 dB and
-  ~2× tracking, but a residual-matched one matches ours — so the value is the *residual-centered recipe*, not
-  a superiority over SC-GS or a control-quality gain.
+- **The positive result is low-overhead, quality-preserving editability, and the key ingredient is the residual.** The recipe
+  reaches near-baseline fidelity (within 0.27 dB at original budget; 0.15 dB iteration-matched) while
+  adding editable handles. A residual-matched ablation (§5.5) attributes this to the per-Gaussian residual —
+  a residual-free SC-GS-style design loses ~0.5 dB and ~2× tracking, but a residual-matched one matches ours
+  — so the value is the *residual-centered recipe*, not a superiority over SC-GS or a control-quality gain.
 - **The controllability claim is a negative, decontaminated finding.** Once the per-Gaussian residual is
   frozen so the metric measures control rather than reconstruction (Sec. 3.6, 5.3), our control — and a
   retrained SC-GS baseline — falls behind nearest-handle interpolation. We report this as a caution: any
@@ -474,7 +479,7 @@ yet outperform classical interpolation. We are explicit about what this does and
   the graph spreads sparse control through learned tissue coherence, is the natural route to control that
   might beat interpolation; it is our primary future work.
 - **Relation to prior control-based methods.** The sparse-control + skinning + editing paradigm is due to
-  SC-GS; our deltas are the cost-free additive integration and the decontaminated evaluation (with SC-GS
+  SC-GS; our deltas are the residual-centered additive integration and the decontaminated evaluation (with SC-GS
   reimplemented as a baseline), not a controllability improvement.
 - **Applications are potential, not validated.** The VR/AR-training and AR-overlay uses of Sec. 1 are
   motivations for *editability*; the edits are plausible and cheap, but not biomechanically validated, and
@@ -487,17 +492,16 @@ yet outperform classical interpolation. We are explicit about what this does and
 ## 7. Conclusion
 
 We presented GC-EndoGaussian, a sparse control-node graph that adds a **real-time editable deformation
-layer** to endoscopic 4D Gaussian reconstruction. Our positive result is a recipe that makes the layer
-*quality-neutral* — preserving reconstruction within 0.15 dB, running at 205 FPS, and adding only +0.07%
-parameters at no extra training time — with a residual-matched ablation isolating the **per-Gaussian
-residual** as the key ingredient (a residual-free sparse-control design loses ~0.5 dB and ~2× tracking; a
-residual-matched SC-GS-style design matches ours). Our second, cautionary result concerns the *evaluation*
-of such control: a naïve control-from-tracks metric is confounded by the model's own reconstruction, and
-once decontaminated, learned sparse control — ours and a retrained SC-GS baseline — does **not** beat
-classical interpolation. We report
-this openly, because we expect the same confound to inflate controllability claims elsewhere in the editable
-dynamic-Gaussian literature. The honest contribution is therefore cost-free editability plus a decontamination
-protocol; making the *learned* control genuinely useful — by routing it through the graph's message passing,
+layer** to endoscopic 4D Gaussian reconstruction. Our positive result is a quality-preserving recipe —
+within 0.27 dB at the base training budget (0.15 dB iteration-matched), 205 FPS, +0.07% parameters — with
+a residual-matched ablation isolating the **per-Gaussian residual** as the key ingredient (a residual-free
+sparse-control design loses ~0.5 dB and ~2× tracking; a residual-matched SC-GS-style design matches ours).
+Our second, cautionary result concerns the *evaluation* of such control: a naïve control-from-tracks metric
+is confounded by the model's own reconstruction, and once decontaminated, learned sparse control — ours and
+a retrained SC-GS baseline — does **not** beat classical interpolation. We report this openly, because we
+expect the same confound to inflate controllability claims elsewhere in the editable dynamic-Gaussian
+literature. The honest contribution is therefore low-overhead editability plus a decontamination protocol;
+making the *learned* control genuinely useful — by routing it through the graph's message passing,
 and ultimately closing the loop with robot kinematics and biomechanical priors — is the path forward.
 
 ---
