@@ -280,16 +280,20 @@ itself, and its central methodological result: decontaminating the metric is wha
 At an iteration-matched 6000-fine-iteration budget, the *match* recipe reproduces vanilla EndoGaussian to
 within ~0.15 dB PSNR with essentially equal SSIM on both datasets (Table 1).
 
-*Table 1. Reconstruction, iteration-matched (6000 iters). ΔPSNR = ours − vanilla (displayed values).*
+*Table 1. Reconstruction at two training budgets. The **same-budget** rows (both at 3000 iters) are
+the fairest comparison; the **iteration-matched** rows (both at 6000 iters) show the asymptotic limit.
+ΔPSNR = ours − vanilla.*
 
-| Dataset | Method | PSNR↑ | SSIM↑ | LPIPS↓ | Depth-RMSE↓ | ΔPSNR |
-|---|---|---|---|---|---|---|
-| pulling | vanilla | 37.32 | 0.9578 | 0.0509 | 2.646 | — |
-| pulling | **ours (match)** | 37.17 | 0.9567 | 0.0533 | 2.793 | **−0.15** |
-| cutting | vanilla | 39.42 | 0.9696 | 0.0322 | 1.358 | — |
-| cutting | **ours (match)** | 39.29 | 0.9689 | 0.0339 | 1.384 | **−0.13** |
+| Dataset | Budget | Method | PSNR↑ | SSIM↑ | LPIPS↓ | Depth-RMSE↓ | ΔPSNR |
+|---|---|---|---|---|---|---|---|
+| pulling | **3k (same budget)** | vanilla | 37.27 | 0.9578 | 0.0609 | 2.906 | — |
+| pulling | **3k (same budget)** | **ours (match)** | 37.00 | 0.9559 | 0.0638 | 3.139 | **−0.27** |
+| pulling | 6k (iter-matched) | vanilla | 37.32 | 0.9578 | 0.0509 | 2.646 | — |
+| pulling | 6k (iter-matched) | **ours (match)** | 37.17 | 0.9567 | 0.0533 | 2.793 | **−0.15** |
+| cutting | 6k (iter-matched) | vanilla | 39.42 | 0.9696 | 0.0322 | 1.358 | — |
+| cutting | 6k (iter-matched) | **ours (match)** | 39.29 | 0.9689 | 0.0339 | 1.384 | **−0.13** |
 
-**At the base method's original 3000-iteration budget** (no extra training time vs vanilla): gap is **0.27 dB** on pulling (37.00 vs 37.27 dB). The iteration-matched 6000-iteration budget narrows this to 0.15 dB — a ~0.1 dB recovery. Both budgets give the capability; the extra iterations are optional.
+The gap at the same training budget is **−0.27 dB**; running both methods for 6000 iterations narrows it to **−0.15 dB** (the extra iterations help our method slightly more than vanilla, but the gap never closes). The editable layer therefore adds a fixed overhead of roughly 0.15–0.27 dB depending on the budget chosen; **no extra training time** means the 3000-iter number is the honest operational figure.
 
 ![Reconstruction comparison](figures/recon_pulling_triptych.png)
 
