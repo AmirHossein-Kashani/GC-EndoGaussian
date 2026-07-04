@@ -17,6 +17,6 @@ Figures and demo videos live in [figures/](figures/) and are embedded by `paper.
    ~0.15 dB PSNR, 205 FPS, +0.07% params); a residual-matched ablation shows the **per-Gaussian residual**
    is the key ingredient (not the GNN or the specific recipe), so this is a practical recipe, not a
    superiority over SC-GS.
-2. **A decontaminated controllability evaluation.** A naïve control-from-tracks metric is confounded by the
+2. **A decontaminated controllability evaluation.** An uncorrected control-from-tracks metric is confounded by the
    model's own reconstruction; once decontaminated, learned sparse control (ours and a retrained SC-GS)
    does **not** beat classical interpolation — reported openly as a methodological caution.

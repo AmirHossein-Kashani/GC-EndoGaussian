@@ -183,7 +183,7 @@ contribution.
 1. **Sparse-to-dense tissue localization protocol with decontamination (the primary, most defensible
    delta).** Given K observed tissue landmark positions, the protocol predicts held-out surface point
    locations and scores against ground-truth tracks — directly relevant to AR overlay accuracy and VR
-   surface fidelity. Its key finding: a naïve form is confounded by reconstruction recall, and once
+   surface fidelity. Its key finding: an uncorrected form is confounded by reconstruction recall, and once
    decontaminated, classical interpolation (nearest-handle, TPS) outperforms learned LBS propagation. This
    is a methodology contribution that transfers to the whole editable-dynamic-Gaussian subfield (§5.3).
 
@@ -288,7 +288,7 @@ correct position regardless of what landmarks are given — the metric measures 
 landmark-driven surface inference. Freezing it too (the `control_only` guard in `deformation.py`) is the
 honest metric. The effect on our own numbers (cross-trial mean, px):
 
-| K | Naïve (residual active) | **Decontaminated (landmarks only)** |
+| K | Uncorrected (residual active) | **Decontaminated (landmarks only)** |
 |---|---|---|
 | 4 | 2.86 | **6.82** |
 | 8 | 2.77 | **6.80** |
@@ -310,7 +310,7 @@ wins at K=16 (globally optimal smooth fit through all K landmarks vs fixed KNN b
 AR/VR surface inference from many landmarks, TPS is the current recommendation. (3) The earlier "2–4×"
 headline was the residual leak, retracted. **The takeaway is methodological:** any localization or
 controllability metric for editable dynamic-Gaussian models must freeze *all* learned motion, or it
-measures reconstruction recall. Naïve numbers are preserved as `control_results_residual.json`.
+measures reconstruction recall. Uncorrected numbers are preserved as `control_results_residual.json`.
 
 ### 5.4 Tracking fidelity and statistical rigor
 
@@ -422,7 +422,7 @@ vs 37.00 dB; 3.41 vs 3.30 px). So the win is the residual, not the GNN coupling 
 choices — a practical recipe, not a superiority over SC-GS.
 
 **We initially believed there was one axis where the graph clearly wins — control-from-tracks — and we were
-wrong.** A naïve version of that metric left the per-Gaussian reconstruction residual active, which leaked
+wrong.** An uncorrected version of that metric left the per-Gaussian reconstruction residual active, which leaked
 learned motion into the apparent "control" and produced a misleading ~2–4× advantage. Under a
 **decontaminated** metric that freezes *all* learned motion (§5.3), learned sparse control — ours and a
 retrained SC-GS baseline — does **not** beat classical interpolation: **6.82 / 6.80 / 8.09 px** at

@@ -263,12 +263,12 @@ At the base 3000-iter budget the gap is ~0.27 dB and the extra iters recover onl
 
 ### 9.3 Controllability — control-from-tracks (decontaminated; a negative finding)
 
-**⚠️ Decontamination is essential.** A naïve control-from-tracks metric leaves the hybrid per-Gaussian
+**⚠️ Decontamination is essential.** An uncorrected control-from-tracks metric leaves the hybrid per-Gaussian
 residual active, which leaks *learned reconstruction* into the "control" prediction. Freezing it
 ([deformation.py](../scene/deformation.py), `control_only` also skips `pos_deform`) is the honest metric.
 Effect on our own *match* model (cross-trial mean px):
 
-| K | Naïve (residual active) | **Decontaminated (control only)** | change |
+| K | Uncorrected (residual active) | **Decontaminated (control only)** | change |
 |---|---|---|---|
 | 4 | 2.86 | **6.82** | +3.96 |
 | 8 | 2.77 | **6.80** | +4.03 |
@@ -287,8 +287,8 @@ Effect on our own *match* model (cross-trial mean px):
 beat classical interpolation — nearest-handle wins at every K, and the learned methods are *worst* at K=16.
 The GNN gives no control advantage because `control_only` bypasses the message passing (the edit is a
 post-hoc node translation). The earlier "~2× over classical" was the residual leak, not a real property of
-the control. See Figure 4 (naïve vs decontaminated, same frame) and Figure 5 (decontaminated curve). The
-naïve numbers are preserved per-model in `control_results_residual.json`.
+the control. See Figure 4 (uncorrected vs decontaminated, same frame) and Figure 5 (decontaminated curve). The
+uncorrected numbers are preserved per-model in `control_results_residual.json`.
 
 ### 9.4 Tracking fidelity — statistically equivalent to baseline
 Median RPE **3.30 (ours) vs 3.47 (vanilla)** px, 95% CIs [3.14, 3.46] vs [3.34, 3.59], paired Wilcoxon
@@ -349,8 +349,8 @@ mechanism is not load-bearing. (`gnn_type` is a flag in [node_deformation.py](..
 |---|---|---|
 | Fig. 2 drag-to-edit | `figures/edit_{before,after,diff}.png` | gentle edit (`after_0`) + magnitude heatmap |
 | Fig. 3 pulling reconstruction | `figures/recon_pulling_triptych.png` | GT\|Ours\|error from render dumps |
-| Fig. 4 decontamination (qual) | `figures/control_from_tracks_qual.png` | naïve (residual-active) vs decontaminated (control-only) at trial 3 f57; `control_viz{,_residual}.json` |
-| Fig. 5 decontaminated curve | `figures/controllability_curve.png` | 4-trial mean; learned (ours/SC-GS) vs classical + the naïve leak (dashed) |
+| Fig. 4 decontamination (qual) | `figures/control_from_tracks_qual.png` | uncorrected (residual-active) vs decontaminated (control-only) at trial 3 f57; `control_viz{,_residual}.json` |
+| Fig. 5 sparse-to-dense localization curve | `figures/sparse_to_dense_localization.png` | 4-trial mean (Table 4); learned (ours/SC-GS) vs classical interpolants (nearest-handle, TPS); regen via `tools/make_fig5_localization.py` |
 | Fig. 6 SuPer reconstruction | `figures/recon_super_t3_triptych.png` | GT\|Ours\|error |
 | GT-vs-Ours videos | `figures/recon_super_trial{3,4,8,9}_gt_vs_ours.mp4`, `recon_pulling_gt_vs_ours.mp4` | ffmpeg hstack of `ours_video.mp4` \| `gt_video.mp4` |
 
@@ -381,7 +381,7 @@ The multi-trial study is scripted in [run_gc_multitrial.bash](../run_gc_multitri
 [run_control_viz.bash](../run_control_viz.bash). SLURM jobs use a single H100.
 
 > **Note on decontamination.** `control_results.json` holds the **decontaminated** (control-only) numbers;
-> the naïve residual-active numbers are preserved as `control_results_residual.json` per model. The guard
+> the uncorrected residual-active numbers are preserved as `control_results_residual.json` per model. The guard
 > lives in [scene/deformation.py](../scene/deformation.py) (§3.5).
 
 ---
