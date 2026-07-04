@@ -350,7 +350,7 @@ mechanism is not load-bearing. (`gnn_type` is a flag in [node_deformation.py](..
 | Fig. 2 drag-to-edit | `figures/edit_{before,after,diff}.png` | gentle edit (`after_0`) + magnitude heatmap |
 | Fig. 3 pulling reconstruction | `figures/recon_pulling_triptych.png` | GT\|Ours\|error from render dumps |
 | Fig. 4 decontamination (qual) | `figures/control_from_tracks_qual.png` | uncorrected (residual-active) vs decontaminated (control-only) at trial 3 f57; `control_viz{,_residual}.json` |
-| Fig. 5 sparse-to-dense localization curve | `figures/sparse_to_dense_localization.png` | 4-trial mean (Table 4); learned (ours/SC-GS) vs classical interpolants (nearest-handle, TPS); regen via `tools/make_fig5_localization.py` |
+| Fig. 5 sparse-to-dense localization curve | `figures/sparse_to_dense_localization.png` | 4-trial mean (Tables 3–4); uncorrected leak (grey dashed) + ~2px noise floor vs decontaminated learned (ours/SC-GS) vs classical interpolants (nearest-handle, TPS, rigid); regen via `tools/make_fig5_localization.py` |
 | Fig. 6 SuPer reconstruction | `figures/recon_super_t3_triptych.png` | GT\|Ours\|error |
 | GT-vs-Ours videos | `figures/recon_super_trial{3,4,8,9}_gt_vs_ours.mp4`, `recon_pulling_gt_vs_ours.mp4` | ffmpeg hstack of `ours_video.mp4` \| `gt_video.mp4` |
 

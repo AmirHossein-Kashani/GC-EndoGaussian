@@ -390,10 +390,15 @@ Two observations:
 
 ![Localization accuracy curve](figures/sparse_to_dense_localization.png)
 
-*Figure 5. Sparse-to-dense tissue localization vs. number of landmarks $K$ (mean over four trials). Our
-method (solid blue) and SC-GS (purple) are statistically tied, with our full system delivering superior
-reconstruction and tracking. Classical geometric functions (nearest-handle, orange; TPS, green) are
-purpose-built interpolants that operate in a different regime and do not provide editability.*
+*Figure 5. Sparse-to-dense tissue localization vs. number of observed landmarks $K$ (mean over four trials;
+held-out reprojection error, lower is better). The decontamination is the point: with the per-Gaussian
+residual left active, the **uncorrected** metric (grey dashed) collapses onto the ~2 px measurement-noise
+floor — it is measuring reconstruction recall, not landmark-driven inference. Once decontaminated (control
+only), our method (solid blue) and the SC-GS learned baseline (purple) are statistically tied, and our full
+system additionally delivers superior reconstruction and tracking. The classical interpolants
+(nearest-handle, orange; TPS, green; rigid, red) are purpose-built spatial functions that operate in a
+fundamentally different regime — no learned scene structure and no ability to author novel edits — so they
+are not directly comparable to a learned editable representation.*
 
 **Surface localization and editing are two sides of the same capability.** When landmarks are observed,
 the control-node graph infers where the rest of the surface is — directly supporting AR overlay placement
