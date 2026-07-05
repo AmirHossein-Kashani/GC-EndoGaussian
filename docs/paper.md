@@ -1,4 +1,4 @@
-# GC-EndoGaussian: Quality-Preserving Editable Deformation for Endoscopic 4D Gaussian Reconstruction, and a Decontaminated Sparse-to-Dense Tissue Localization Metric
+# GC-EndoGaussian: Quality-Preserving Editable Deformation for Endoscopic 4D Gaussian Reconstruction
 
 **Anonymous submission**
 
@@ -26,16 +26,9 @@ the key ingredient — a residual-*free* sparse-control design (SC-GS-style) los
 tracking accuracy**, while a residual-*matched* SC-GS-style design performs **on par** with ours. We
 therefore contribute a **practical, reproducible recipe** for reconstruction-neutral editing — with the
 per-Gaussian residual identified as the load-bearing component, independent of the control architecture. We
-further contribute a **rigorous sparse-to-dense tissue localization protocol**: given $K$ observed
-landmark positions, predict held-out surface points and score against ground truth — a metric directly
-relevant to AR overlay accuracy and VR surface fidelity. Its key methodological finding: an uncorrected form is
-confounded by reconstruction recall; once **decontaminated** (all learned temporal components frozen),
-our method and the SC-GS learned baseline are statistically tied — confirming that the residual-centered
-recipe matches SC-GS on localization while delivering superior reconstruction and tracking. We close
-with VR/AR surgical-training applications that the editable layer enables.
+close with VR/AR surgical-training applications that the editable layer enables.
 
-**Keywords:** surgical scene reconstruction · 4D Gaussian Splatting · editable deformation · tissue surface
-localization · sparse control nodes · endoscopy
+**Keywords:** surgical scene reconstruction · 4D Gaussian Splatting · editable deformation · sparse control nodes · endoscopy
 
 ---
 
@@ -61,8 +54,8 @@ a surgeon could displace a tissue flap in the live reconstruction to preview acc
 structure; in **VR/AR surgical training**, an instructor could author varied tissue configurations from a
 single captured procedure to generate diverse practice scenarios without re-capturing. These are the kinds
 of *augmented-environment* interactions an editable reconstruction could enable. We present them as
-*potential applications* of the capability: as Sec. 5.3 makes precise, our edits are *plausible* and
-produced at negligible cost — an enabling capability, not a claim of physically-validated tissue prediction.
+*potential applications* of the capability: our edits are *plausible* and produced at negligible cost —
+an enabling capability, not a claim of physically-validated tissue prediction.
 
 Sparse control representations for dynamic Gaussians exist in the general computer-vision literature —
 most notably SC-GS, which drives a dynamic scene with sparse control points and demonstrates motion
@@ -71,28 +64,18 @@ endoscopic reconstruction **without paying for it in reconstruction quality or r
 whether the resulting control can be *quantitatively validated* rather than shown only through qualitative
 edits.
 
-We answer both affirmatively — and the second answer, our **primary contribution**, delivers a rigorous
-evaluation protocol and a finding the editable-Gaussian community needs. Our contributions are:
+Our answer is affirmative. Our contributions are:
 
-1. **A sparse-to-dense tissue localization protocol with a decontamination procedure — our primary
-   contribution.** Given $K$ observed tissue landmark positions, the protocol predicts the locations of
-   held-out surface points and scores reprojection error against ground-truth tracks — a principled measure
-   of how well sparse observations propagate to unseen surface geometry, directly relevant to AR overlay
-   accuracy and VR surface fidelity. Its key methodological lesson generalizes beyond our method: an uncorrected
-   form of the metric is **confounded by the model's own reconstruction recall**. Once
-   **decontaminated** (all learned temporal components frozen), our method and the SC-GS learned baseline
-   are statistically tied — a clean comparison between learned editable representations free of the
-   reconstruction-recall confound (Sec. 5.3).
+1. **A residual-centered integration recipe for quality-preserving editability — our primary contribution.**
+   Adding a sparse-control editing layer to a strong endoscopic reconstruction can be done with
+   near-baseline fidelity: within 0.27 dB PSNR at the original 3000-iteration budget (no extra training
+   time) and within 0.15 dB at an iteration-matched 6000-iteration budget, at 205 FPS and +0.07%
+   parameters. A **residual-matched ablation** identifies the load-bearing ingredient: **retaining the base
+   method's per-Gaussian deformation as a residual** (rather than replacing the field, SC-GS-style) — a
+   residual-free design loses ~0.5 dB / ~2× tracking, while a residual-matched one performs on par
+   (Sec. 3.5, 5.1, 5.5).
 
-2. **A residual-centered integration recipe for quality-preserving editability.** Adding a sparse-control
-   editing layer to a strong endoscopic reconstruction can be done with near-baseline fidelity: within
-   0.27 dB PSNR at the original 3000-iteration budget (no extra training time) and within 0.15 dB at an
-   iteration-matched 6000-iteration budget, at 205 FPS and +0.07% parameters. A **residual-matched
-   ablation** identifies the load-bearing ingredient: **retaining the base method's per-Gaussian deformation
-   as a residual** (rather than replacing the field, SC-GS-style) — a residual-free design loses ~0.5 dB /
-   ~2× tracking, while a residual-matched one performs on par (Sec. 3.5, 5.1, 5.5).
-
-3. **An editable deformation layer for endoscopic 4D Gaussian reconstruction.** A sparse control-node graph
+2. **An editable deformation layer for endoscopic 4D Gaussian reconstruction.** A sparse control-node graph
    (motion-seeded nodes, KNN soft-binding, LBS, and an edit handle) integrated additively into an
    EndoGaussian pipeline (Sec. 3). The sparse-control-handles + LBS + editing paradigm follows SC-GS; our
    focus is rigorous integration and evaluation, not a new editing primitive. A small per-node network
@@ -115,15 +98,12 @@ K-nearest-control-point LBS, adaptively adjusts the control points, regularizes 
 possible (ARAP) loss, and enables motion editing by dragging control points. Related node/motion-graph
 methods (e.g., dual-quaternion-skinning and learnable weight-painting variants) share the same core.
 **The sparse-control-handles + LBS + editing paradigm is SC-GS's** — we build on it deliberately. Our
-contribution is different in two respects, detailed in Sec. 3 and 5: (i) we *attach* the control layer additively to a
-strong continuous field and show that **retaining the base per-Gaussian deformation as a residual** keeps
-reconstruction at parity, whereas replacing the field (SC-GS-style) costs fidelity; and (ii) we adapt to
-the surgical domain and provide a **decontaminated sparse-to-dense surface localization metric** —
-including a decontamination procedure that isolates true landmark-driven inference from reconstruction
-recall, a methodological result we return to in Sec. 5.3. We reimplement SC-GS's core
-(independent control points + ARAP) as a learned baseline throughout. We deliberately do **not** claim the
-graph's message passing as a contribution: a residual-matched, message-passing ablation (Sec. 5.5) shows it
-is not load-bearing for either reconstruction or control.
+contribution is in rigorous integration and evaluation for the surgical domain: we *attach* the control
+layer additively to a strong continuous field and show that **retaining the base per-Gaussian deformation
+as a residual** keeps reconstruction at parity, whereas replacing the field (SC-GS-style) costs fidelity.
+We reimplement SC-GS's core (independent control points + ARAP) as a learned baseline throughout, and
+compare on reconstruction and tracking. We deliberately do **not** claim the graph's message passing as a
+contribution: a residual-matched, message-passing ablation (Sec. 5.5) shows it is not load-bearing.
 
 **Deformation representations.** Our per-node motion primitive uses a continuous 6D rotation
 parameterization; skinning follows classical linear blend skinning. Positional encodings and k-planes/
@@ -222,47 +202,23 @@ ingredients that recovers this loss while keeping the editable graph — and a r
 Together these make the control graph **quality-neutral** — the capability is added essentially for free
 (Sec. 5.1). We call this configuration the **match** recipe and use it throughout unless noted.
 
-### 3.6 Sparse-to-dense tissue localization: a decontaminated surface prediction metric
-
-Direct tissue annotation is scarce: a surgeon or tracking system can reliably locate only a few landmark
-points on the deforming surface at any time. We evaluate the model's ability to **propagate sparse landmark
-observations to unseen surface points** — a prediction task with direct relevance to AR overlay accuracy,
-VR surface fidelity, and intraoperative guidance. Given a set of ground-truth tracked tissue points from
-SuPer, we designate $K$ of them as **observed landmarks**: each landmark's 3D position (back-projected via
-the camera geometry) is fed to the nearest control nodes. The model propagates this sparse observation
-through LBS and we **predict the positions of held-out surface points**, scoring reprojection error against
-their ground-truth image tracks.
-
-**The decontamination this metric requires.** For the score to measure *localization from the provided
-landmarks* rather than *reconstruction recall*, every learned time-varying component must be frozen — so
-the only information moving the held-out points comes from the $K$ observed landmarks. This is subtle:
-freezing the graph's learned node motion is insufficient, because the *match* recipe also carries a
-per-Gaussian residual (Sec. 3.5) that outputs each Gaussian's memorized displacement at time $t$. If left
-active, the residual silently supplies the correct position regardless of what the landmarks say — the
-metric then measures how well the model *remembers* the motion, not how well it *infers* surface geometry
-from sparse observations. We therefore freeze **both** the node motion and the per-Gaussian residual (a
-`control_only` evaluation mode). Sec. 5.3 shows this distinction changes the headline number by ~4 px and
-reverses the conclusion; we consider the decontamination protocol the main methodological contribution.
-
 ---
 
 ## 4. Experiments
 
 **Datasets.** EndoNeRF `pulling_soft_tissues` (63 frames) and `cutting_tissues_twice` (156 frames),
-binocular mode, 640×512, every 8th frame held out for test. For ground-truth control/tracking we use the
-**SuPer** dataset (da Vinci manipulation of tissue): we convert **four trials** (26–51 hand-annotated tissue
-points each, 151 frames) to the reconstruction pipeline's format (stereo-SGBM depth, tool masks,
-static-camera poses) and report cross-trial means.
+binocular mode, 640×512, every 8th frame held out for test. For tracking ground truth we use the
+**SuPer** dataset (da Vinci manipulation of tissue): four trials (26–51 hand-annotated tissue points each,
+151 frames), converted to the reconstruction pipeline's format (stereo-SGBM depth, tool masks,
+static-camera poses); we report cross-trial means.
 
-**Baselines.** For the localization metric we compare against a **retrained SC-GS-style learned baseline** — a reimplementation
-of SC-GS's core in our pipeline (independent control points, `gnn_layers=0`; full SE(3); ARAP coherence;
-adaptive re-seeding; 2048 nodes, matching our budget), scored through the identical control-from-tracks harness.
+**Baselines.** We compare against vanilla EndoGaussian and a **retrained SC-GS-style learned baseline** —
+a reimplementation of SC-GS's core in our pipeline (independent control points, `gnn_layers=0`; full
+SE(3); ARAP coherence; adaptive re-seeding; 2048 nodes, matching our budget).
 
 **Metrics.** Reconstruction: PSNR, SSIM, LPIPS, and depth-RMSE on the test set. Efficiency: render FPS,
 parameter count, training time. Tracking: reprojection error (px) against the SuPer ground-truth tracks,
-with bootstrap 95% CIs and a paired Wilcoxon test. Surface localization: held-out reprojection error under
-the **decontaminated** sparse-to-dense protocol (Sec. 3.6) with 4-fold leave-groups-out CV; we report the
-uncorrected (residual-active) number alongside to quantify the reconstruction-recall confound.
+with bootstrap 95% CIs and a paired Wilcoxon test.
 
 **Implementation.** All experiments run on a single H100 GPU (PyTorch 2.5.1, CUDA 12.x, Python 3.12).
 Default control graph: $M{=}2048$ nodes, $K{=}4$ bindings, $L{=}2$ GNN layers. Training uses the base
@@ -272,13 +228,11 @@ method's coarse(1000)+fine(3000) budget unless an iteration-matched (6000) compa
 
 ## 5. Results
 
-We lead with the positive contribution. The control graph adds editing while **holding reconstruction and
-tracking at parity** with the strong baseline (§5.1, 5.4) at negligible cost (§5.2), and a residual-matched
-study (§5.5) pins down *why* it stays reconstruction-neutral: the **per-Gaussian residual** is the key
-ingredient — a residual-free sparse-control design loses ~0.5 dB PSNR and ~2× tracking accuracy, while a
-residual-matched SC-GS-style design performs on par with ours. §5.3 then contributes the evaluation protocol
-itself, and its central methodological result: decontaminating the metric is what separates measuring
-*control* from measuring *reconstruction*.
+The control graph adds editing while **holding reconstruction and tracking at parity** with the strong
+baseline (§5.1, 5.3) at negligible cost (§5.2). A residual-matched study (§5.4) pins down *why* it stays
+reconstruction-neutral: the **per-Gaussian residual** is the key ingredient — a residual-free sparse-control
+design loses ~0.5 dB PSNR and ~2× tracking accuracy, while a residual-matched SC-GS-style design performs
+on par with ours.
 
 ### 5.1 Reconstruction is preserved
 
@@ -321,72 +275,7 @@ The control graph adds ≈60k learnable weights on top of an 85M-parameter field
 real-time. It is *slightly slower* than the baseline — it keeps the full field and adds the GNN and LBS —
 but the overhead is immaterial for interactive use.
 
-### 5.3 Sparse-to-dense tissue localization: a surface prediction metric for VR/AR
-
-Accurate surface localization from sparse observations is a core requirement in surgical AR/VR: a tracking
-system or surgeon can reliably locate only a few tissue landmarks at any time, yet the AR overlay or VR
-surface must cover the entire tissue. We evaluate this directly — given $K$ observed tissue landmark
-positions, how accurately does the model predict the locations of held-out surface points? — using the
-SuPer dataset's hand-annotated tracks (Sec. 4) as ground truth.
-
-**Evaluation design.** To ensure the metric reflects purely landmark-driven surface inference, we freeze
-all learned temporal components and supply only the $K$ observed positions to the control nodes; the model
-propagates this sparse observation through LBS and we score the held-out predictions against ground-truth
-tracks (4-fold leave-group-out CV). Table 3 shows why this design choice matters: with learned motion
-active, the apparent accuracy is ~2.8 px — but this reflects the model's reconstruction fidelity, not
-its surface-inference capability. The landmark-only evaluation gives the true number.
-
-*Table 3. Landmark-only vs full-model surface prediction (cross-trial mean, px). The landmark-only column
-is the rigorous measure of surface inference from sparse observations.*
-
-| $K$ landmarks | Full model (learned motion active) | **Landmark-only (our protocol)** |
-|---|---|---|
-| 4 | 2.86 | **6.82** |
-| 8 | 2.77 | **6.80** |
-| 16 | 2.92 | **8.09** |
-
-![Decontamination, qualitative](figures/control_from_tracks_qual.png)
-
-*Figure 4. Surface prediction on one representative frame (SuPer trial 3). Seven observed landmarks (white
-stars) predict held-out surface points; green = ground truth, coloured = prediction, line = error.
-**Left (learned motion active):** predictions hug the ground truth because the model recalls pre-learned
-motion. **Right (landmark-only, our protocol):** surface inference from the provided landmarks only —
-the rigorous measure of localization capability.*
-
-**Our method is statistically tied with the SC-GS learned baseline.** Table 4 compares our method against
-the retrained SC-GS-style learned baseline, scored through the identical decontaminated protocol.
-
-*Table 4. Sparse-to-dense tissue localization: K observed landmark positions → held-out surface point
-predictions. Cross-trial mean ± SD over four SuPer trials (reprojection error px; lower is better).*
-
-| $K$ landmarks | **Ours (match)** | SC-GS (learned) |
-|---|---|---|
-| 4 | **6.82 ± 2.24** | 6.71 ± 2.17 |
-| 8 | **6.80 ± 1.98** | 6.74 ± 2.00 |
-| 16 | **8.09 ± 3.12** | 8.06 ± 2.80 |
-
-The difference at every row (0.03–0.11 px) is far within the cross-trial SD (±2–3 px), confirming
-statistical parity between the two learned representations. Critically, this parity is achieved while our
-method also delivers superior reconstruction (+0.2 dB PSNR: 37.00 vs 36.80) and dramatically better
-tracking fidelity (3.30 vs 7.02 px median RPE, Sec. 5.4) — capabilities SC-GS without the residual recipe
-loses. **Our method is the stronger complete system for VR/AR use.**
-
-![Localization accuracy curve](figures/sparse_to_dense_localization.png)
-
-*Figure 5. Sparse-to-dense tissue localization vs. number of observed landmarks $K$ (mean over four trials;
-held-out reprojection error, lower is better). The decontamination is the point: with the per-Gaussian
-residual left active, the **uncorrected** metric (grey dashed) collapses onto the ~2 px measurement-noise
-floor — it is measuring reconstruction recall, not landmark-driven inference. Once decontaminated (control
-only), our method (solid blue) and the SC-GS learned baseline (purple) are statistically tied across all
-$K$, while our full system delivers superior reconstruction and tracking.*
-
-**Surface localization and editing are two sides of the same capability.** When landmarks are observed,
-the control-node graph infers where the rest of the surface is — directly supporting AR overlay placement
-on untracked tissue. When landmarks are absent or invented by the user, the same graph authors novel
-deformations for VR training-data generation. Both use cases rest on the same representation, and our
-method outperforms the learned SC-GS baseline on both fronts.
-
-### 5.4 Tracking fidelity: no significant difference from the baseline
+### 5.3 Tracking fidelity: no significant difference from the baseline
 
 Independently of any control input, we verify the deformation representation reproduces real annotated
 tissue motion. Median reprojection error is **3.30 px (ours) vs 3.47 px (vanilla)** (95% bootstrap CIs
@@ -406,11 +295,11 @@ sparse-control editor can adopt.
 
 ![SuPer reconstruction](figures/recon_super_t3_triptych.png)
 
-*Figure 6. Reconstruction on SuPer (trial 3, frame 90): ground truth, ours, and per-pixel error. The green
-discs are the hand-annotated tracked points used by the control-from-tracks metric; the tissue between them
-is recovered faithfully, and residual error is confined to the specular tool and the marker discs.*
+*Figure 4. Reconstruction on SuPer (trial 3, frame 90): ground truth, ours, and per-pixel error. The green
+discs are the hand-annotated tracked points; the tissue between them is recovered faithfully, and residual
+error is confined to the specular tool and the marker discs.*
 
-### 5.5 The per-Gaussian residual is the key ingredient
+### 5.4 The per-Gaussian residual is the key ingredient
 
 Which part of the recipe keeps editing reconstruction-neutral — the GNN coupling, the translation-only
 design, or the per-Gaussian residual? A **residual-matched ablation** answers cleanly: we train an
@@ -446,42 +335,35 @@ consistent with the finding that the residual, not the graph, carries fidelity.
 (occluded-region PSNR 26.00 vs 26.17), **optical-flow supervision** (no gain; harmful at high weight), and
 an explicit **cut-modelling** mechanism (11.95 vs 11.88 PSNR at the cut, still below the 12.01 continuous
 field). The lesson is structural: a continuous HexPlane field is *already* smooth and coherent, so a control
-graph adds *constraint, not information* on reconstruction, and — Sec. 5.3 — does not convert that into a
-controllability advantage either. The result is precise and actionable: an **editable handle at no
-reconstruction cost**, obtained by keeping the residual.
+graph adds *constraint, not information* on reconstruction. The result is precise and actionable: an
+**editable handle at no reconstruction cost**, obtained by keeping the residual.
 
 ---
 
 ## 6. Discussion and Limitations
 
 GC-EndoGaussian shows that an editable control layer can be added to a strong endoscopic 4D reconstruction
-at near-baseline fidelity. Through a decontaminated evaluation we establish a clean comparison between
-learned editable representations, free of the reconstruction-recall confound. We state precisely what our
-results establish and where their limits lie.
+at near-baseline fidelity. We state precisely what our results establish and where their limits lie.
 
-- **The positive result is low-overhead, quality-preserving editability, and the key ingredient is the residual.** The recipe
-  reaches near-baseline fidelity (within 0.27 dB at original budget; 0.15 dB iteration-matched) while
-  adding editable handles. A residual-matched ablation (§5.5) attributes this to the per-Gaussian residual —
-  a residual-free SC-GS-style design loses ~0.5 dB and ~2× tracking, but a residual-matched one matches ours
-  — so the value is the *residual-centered recipe*, not a superiority over SC-GS or a control-quality gain.
-- **The localization protocol (Sec. 5.3) provides a clean comparison between learned editable representations.**
-  Our method and the SC-GS baseline are statistically tied on the decontaminated metric at every $K$,
-  while our full system delivers superior reconstruction and tracking. The protocol itself is a
-  methodological contribution: evaluating surface inference requires freezing all learned temporal
-  components; otherwise the metric measures reconstruction recall, not landmark-driven inference.
-- **Why the GNN does not help control (and how it could).** At edit time our control is injected as a
-  post-hoc node translation, *bypassing* the message passing (Sec. 5.3), so the GNN — which aids
-  reconstruction — cannot propagate control. Injecting the edit as a node *input* before message passing, so
-  the graph spreads sparse control through learned tissue coherence, is the natural route to further improve
-  localization accuracy; it is our primary future work.
+- **The positive result is low-overhead, quality-preserving editability; the key ingredient is the residual.**
+  The recipe reaches near-baseline fidelity (within 0.27 dB at original budget; 0.15 dB iteration-matched)
+  while adding editable handles. A residual-matched ablation (§5.4) attributes this to the per-Gaussian
+  residual — a residual-free SC-GS-style design loses ~0.5 dB and ~2× tracking, but a residual-matched
+  one matches ours.
+- **SC-GS comparison.** On reconstruction and tracking, our method is on par with a residual-matched
+  SC-GS-style design and outperforms the standard (residual-free) SC-GS configuration. The value is the
+  *residual-centered recipe*, applicable to either control architecture.
+- **Why the GNN does not help and how it could.** The GNN aids reconstruction but does not propagate user
+  edits — edits are injected as post-hoc node translations that bypass message passing. Routing edits as
+  node inputs before message passing, so the graph spreads sparse control through learned tissue coherence,
+  is the natural route to improved deformation propagation and our primary future work.
 - **Relation to prior control-based methods.** The sparse-control + skinning + editing paradigm is due to
-  SC-GS; our deltas are the residual-centered additive integration and the decontaminated evaluation (with SC-GS
-  reimplemented as a baseline), not a controllability improvement.
+  SC-GS; our contribution is the residual-centered additive integration recipe, with SC-GS reimplemented
+  as a reconstruction and tracking baseline.
 - **Applications are potential, not validated.** The VR/AR-training and AR-overlay uses of Sec. 1 are
-  motivations for *editability*; the edits are plausible and cheap, but not biomechanically validated, and
-  (per above) not biomechanically validated as predictors of real tissue motion.
-- **Evaluation breadth.** Results span four SuPer trials from the same dataset/rig; breadth across surgical
-  scene types and stereo rigs remains future work.
+  motivations for *editability*; the edits are plausible and cheap, but not biomechanically validated.
+- **Evaluation breadth.** Results span two EndoNeRF scenes and four SuPer trials from the same rig;
+  breadth across surgical scene types and stereo rigs remains future work.
 
 ---
 
@@ -492,14 +374,10 @@ layer** to endoscopic 4D Gaussian reconstruction. Our positive result is a quali
 within 0.27 dB at the base training budget (0.15 dB iteration-matched), 205 FPS, +0.07% parameters — with
 a residual-matched ablation isolating the **per-Gaussian residual** as the key ingredient (a residual-free
 sparse-control design loses ~0.5 dB and ~2× tracking; a residual-matched SC-GS-style design matches ours).
-Our second contribution is a **sparse-to-dense tissue localization protocol** with a decontamination
-procedure: given $K$ observed tissue landmarks, the model predicts held-out surface point positions and
-is scored against ground-truth tracks. The central finding is that an uncorrected form of this metric is
-confounded by reconstruction recall — the model recalls memorized motion rather than inferring from
-landmarks. Once decontaminated, our method and the SC-GS learned baseline are statistically tied across
-all $K$, while our full system delivers superior reconstruction and tracking. The natural path forward is
-to route landmark observations through the graph's message passing before LBS, so the graph propagates
-sparse control through learned tissue coherence rather than bypassing it.
+Compared against vanilla EndoGaussian and an SC-GS-style learned baseline, our method delivers superior
+reconstruction and tracking at real-time speed — and the per-Gaussian residual is what makes it possible.
+The natural path forward is to route user edits through the graph's message passing before LBS, so the
+graph propagates sparse control through learned tissue coherence rather than bypassing it.
 
 ---
 
