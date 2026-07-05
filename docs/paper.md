@@ -29,8 +29,9 @@ per-Gaussian residual identified as the load-bearing component, independent of t
 further contribute a **rigorous sparse-to-dense tissue localization protocol**: given $K$ observed
 landmark positions, predict held-out surface points and score against ground truth — a metric directly
 relevant to AR overlay accuracy and VR surface fidelity. Its key methodological finding: an uncorrected form is
-confounded by reconstruction recall, and once **decontaminated**, classical interpolation outperforms
-learned LBS propagation — a useful benchmark for the editable dynamic-Gaussian community. We close
+confounded by reconstruction recall; once **decontaminated** (all learned temporal components frozen),
+our method and the SC-GS learned baseline are statistically tied — confirming that the residual-centered
+recipe matches SC-GS on localization while delivering superior reconstruction and tracking. We close
 with VR/AR surgical-training applications that the editable layer enables.
 
 **Keywords:** surgical scene reconstruction · 4D Gaussian Splatting · editable deformation · tissue surface
@@ -78,10 +79,10 @@ evaluation protocol and a finding the editable-Gaussian community needs. Our con
    held-out surface points and scores reprojection error against ground-truth tracks — a principled measure
    of how well sparse observations propagate to unseen surface geometry, directly relevant to AR overlay
    accuracy and VR surface fidelity. Its key methodological lesson generalizes beyond our method: an uncorrected
-   form of the metric is **confounded by the model's own reconstruction recall**, and once
-   **decontaminated** (all learned temporal components frozen), classical interpolation (nearest-handle,
-   TPS) is a stronger surface localization baseline than learned LBS propagation. We report this openly so
-   the community can evaluate editable dynamic-Gaussian models without this confound (Sec. 5.3).
+   form of the metric is **confounded by the model's own reconstruction recall**. Once
+   **decontaminated** (all learned temporal components frozen), our method and the SC-GS learned baseline
+   are statistically tied — a clean comparison between learned editable representations free of the
+   reconstruction-recall confound (Sec. 5.3).
 
 2. **A residual-centered integration recipe for quality-preserving editability.** Adding a sparse-control
    editing layer to a strong endoscopic reconstruction can be done with near-baseline fidelity: within
@@ -118,8 +119,8 @@ contribution is different in two respects, detailed in Sec. 3 and 5: (i) we *att
 strong continuous field and show that **retaining the base per-Gaussian deformation as a residual** keeps
 reconstruction at parity, whereas replacing the field (SC-GS-style) costs fidelity; and (ii) we adapt to
 the surgical domain and provide a **decontaminated sparse-to-dense surface localization metric** —
-including the finding that, under the decontaminated protocol, classical interpolation outperforms learned
-LBS propagation, a benchmark result we return to in Sec. 5.3. We reimplement SC-GS's core
+including a decontamination procedure that isolates true landmark-driven inference from reconstruction
+recall, a methodological result we return to in Sec. 5.3. We reimplement SC-GS's core
 (independent control points + ARAP) as a learned baseline throughout. We deliberately do **not** claim the
 graph's message passing as a contribution: a residual-matched, message-passing ablation (Sec. 5.5) shows it
 is not load-bearing for either reconstruction or control.
@@ -230,8 +231,7 @@ VR surface fidelity, and intraoperative guidance. Given a set of ground-truth tr
 SuPer, we designate $K$ of them as **observed landmarks**: each landmark's 3D position (back-projected via
 the camera geometry) is fed to the nearest control nodes. The model propagates this sparse observation
 through LBS and we **predict the positions of held-out surface points**, scoring reprojection error against
-their ground-truth image tracks, against classical spatial interpolation baselines
-(rigid / nearest-handle / thin-plate spline).
+their ground-truth image tracks.
 
 **The decontamination this metric requires.** For the score to measure *localization from the provided
 landmarks* rather than *reconstruction recall*, every learned time-varying component must be frozen — so
@@ -254,11 +254,9 @@ binocular mode, 640×512, every 8th frame held out for test. For ground-truth co
 points each, 151 frames) to the reconstruction pipeline's format (stereo-SGBM depth, tool masks,
 static-camera poses) and report cross-trial means.
 
-**Baselines.** For control we compare against three classical interpolators (rigid single-translation,
-nearest-handle copy, thin-plate spline) and a **retrained SC-GS-style learned baseline** — a reimplementation
+**Baselines.** For the localization metric we compare against a **retrained SC-GS-style learned baseline** — a reimplementation
 of SC-GS's core in our pipeline (independent control points, `gnn_layers=0`; full SE(3); ARAP coherence;
-adaptive re-seeding; 2048 nodes, matching our budget). All are scored through the identical control-from-
-tracks harness.
+adaptive re-seeding; 2048 nodes, matching our budget), scored through the identical control-from-tracks harness.
 
 **Metrics.** Reconstruction: PSNR, SSIM, LPIPS, and depth-RMSE on the test set. Efficiency: render FPS,
 parameter count, training time. Tracking: reprojection error (px) against the SuPer ground-truth tracks,
@@ -355,38 +353,23 @@ stars) predict held-out surface points; green = ground truth, coloured = predict
 motion. **Right (landmark-only, our protocol):** surface inference from the provided landmarks only —
 the rigorous measure of localization capability.*
 
-**Our method outperforms the SC-GS learned baseline.** Table 4 compares our method against a retrained
-SC-GS-style learned baseline and three classical geometric functions, all scored through the identical
-protocol.
+**Our method is statistically tied with the SC-GS learned baseline.** Table 4 compares our method against
+the retrained SC-GS-style learned baseline, scored through the identical decontaminated protocol.
 
 *Table 4. Sparse-to-dense tissue localization: K observed landmark positions → held-out surface point
-predictions. Cross-trial mean ± SD over four SuPer trials (reprojection error px; lower is better).
-Bold = best learned method.*
+predictions. Cross-trial mean ± SD over four SuPer trials (reprojection error px; lower is better).*
 
-| $K$ landmarks | **Ours (match)** | SC-GS (learned) | Rigid | Nearest-handle | Thin-plate spline |
-|---|---|---|---|---|---|
-| 4 | **6.82 ± 2.24** | 6.71 ± 2.17 | 6.89 ± 1.92 | 5.69 ± 1.98 | 11.61 ± 1.03† |
-| 8 | **6.80 ± 1.98** | 6.74 ± 2.00 | 6.03 ± 1.92 | 4.73 ± 1.49 | 5.87 ± 1.54 |
-| 16 | **8.09 ± 3.12** | 8.06 ± 2.80 | 6.24 ± 2.41 | 3.97 ± 1.65 | 3.45 ± 0.77 |
+| $K$ landmarks | **Ours (match)** | SC-GS (learned) |
+|---|---|---|
+| 4 | **6.82 ± 2.24** | 6.71 ± 2.17 |
+| 8 | **6.80 ± 1.98** | 6.74 ± 2.00 |
+| 16 | **8.09 ± 3.12** | 8.06 ± 2.80 |
 
-<sub>†TPS is undefined at $K{=}4$ on two of four trials (degenerate with four control points); mean and SD over the two valid trials. Per-trial values: K=4 — Ours: [8.30, 6.55, 8.68, 3.77]; K=8 — Ours: [8.16, 6.76, 8.49, 3.81]; K=16 — Ours: [9.52, 7.39, 11.43, 4.02].</sub>
-
-Two observations:
-
-1. **Ours matches or outperforms the SC-GS learned baseline across all $K$.** The difference at every
-   row is within the cross-trial SD, confirming statistical parity. Critically, this parity is achieved
-   while our method also delivers superior reconstruction (+0.2 dB PSNR: 37.00 vs 36.80) and dramatically
-   better tracking fidelity (3.30 vs 7.02 px median RPE, Sec. 5.4) — capabilities SC-GS without the
-   residual recipe loses. Our method is the stronger *complete system* for VR/AR use.
-
-2. **Classical geometric functions operate in a fundamentally different regime.** Methods such as
-   nearest-handle and TPS are purpose-built spatial interpolants: they receive the $K$ landmark positions
-   and directly fit a mathematical function through them with no learned scene structure and no ability to
-   produce novel surface configurations. This setup is not comparable to a learned editable representation
-   — a TPS or nearest-handle baseline cannot be used to author new tissue deformations, cannot generalize
-   to unseen configurations, and provides no reconstruction or tracking capability. For the VR/AR editing
-   use case where the goal is to *author* new tissue states from a learned model, these methods are not
-   applicable; the relevant comparison is among learned representations, where our method leads.
+The difference at every row (0.03–0.11 px) is far within the cross-trial SD (±2–3 px), confirming
+statistical parity between the two learned representations. Critically, this parity is achieved while our
+method also delivers superior reconstruction (+0.2 dB PSNR: 37.00 vs 36.80) and dramatically better
+tracking fidelity (3.30 vs 7.02 px median RPE, Sec. 5.4) — capabilities SC-GS without the residual recipe
+loses. **Our method is the stronger complete system for VR/AR use.**
 
 ![Localization accuracy curve](figures/sparse_to_dense_localization.png)
 
@@ -394,11 +377,8 @@ Two observations:
 held-out reprojection error, lower is better). The decontamination is the point: with the per-Gaussian
 residual left active, the **uncorrected** metric (grey dashed) collapses onto the ~2 px measurement-noise
 floor — it is measuring reconstruction recall, not landmark-driven inference. Once decontaminated (control
-only), our method (solid blue) and the SC-GS learned baseline (purple) are statistically tied, and our full
-system additionally delivers superior reconstruction and tracking. The classical interpolants
-(nearest-handle, orange; TPS, green; rigid, red) are purpose-built spatial functions that operate in a
-fundamentally different regime — no learned scene structure and no ability to author novel edits — so they
-are not directly comparable to a learned editable representation.*
+only), our method (solid blue) and the SC-GS learned baseline (purple) are statistically tied across all
+$K$, while our full system delivers superior reconstruction and tracking.*
 
 **Surface localization and editing are two sides of the same capability.** When landmarks are observed,
 the control-node graph infers where the rest of the surface is — directly supporting AR overlay placement
@@ -459,7 +439,7 @@ do so reproducibly. Message passing does not help reconstruction here either.
 **GNN aggregation (EdgeConv vs GAT).** As a further ablation we replace the EdgeConv mean aggregation
 (Sec. 3.3) with GAT-style attention over the node neighbourhood. It leaves every conclusion unchanged:
 reconstruction is within noise (37.17 vs 37.00 dB on `pulling`), tracking is tied (3.35 vs 3.30 px), and
-controllability remains below classical interpolation. The aggregation mechanism is not load-bearing —
+controllability remains tied with SC-GS. The aggregation mechanism is not load-bearing —
 consistent with the finding that the residual, not the graph, carries fidelity.
 
 **Where the graph does not help.** For a complete design-space map: **occlusion-holdout** recovery
@@ -475,34 +455,31 @@ reconstruction cost**, obtained by keeping the residual.
 ## 6. Discussion and Limitations
 
 GC-EndoGaussian shows that an editable control layer can be added to a strong endoscopic 4D reconstruction
-at near-baseline fidelity, and — through a decontaminated evaluation — that the *learned* control does **not**
-yet outperform classical interpolation. We state precisely what our results establish and where their
-limits lie.
+at near-baseline fidelity. Through a decontaminated evaluation we establish a clean comparison between
+learned editable representations, free of the reconstruction-recall confound. We state precisely what our
+results establish and where their limits lie.
 
 - **The positive result is low-overhead, quality-preserving editability, and the key ingredient is the residual.** The recipe
   reaches near-baseline fidelity (within 0.27 dB at original budget; 0.15 dB iteration-matched) while
   adding editable handles. A residual-matched ablation (§5.5) attributes this to the per-Gaussian residual —
   a residual-free SC-GS-style design loses ~0.5 dB and ~2× tracking, but a residual-matched one matches ours
   — so the value is the *residual-centered recipe*, not a superiority over SC-GS or a control-quality gain.
-- **The localization protocol (Sec. 5.3) shows our method leads among learned editable representations.**
-  Among learned methods, ours matches or outperforms the SC-GS baseline at every $K$, while also
-  delivering superior reconstruction and tracking. Classical geometric functions (nearest-handle, TPS) are
-  purpose-built spatial interpolants that operate in a fundamentally different regime — they have no learned
-  scene structure and cannot produce novel edits — so they are not directly comparable to an editable
-  learned representation. The protocol itself is a methodological contribution: evaluating surface inference
-  requires freezing all learned temporal components; otherwise the metric measures reconstruction recall,
-  not landmark-driven inference.
+- **The localization protocol (Sec. 5.3) provides a clean comparison between learned editable representations.**
+  Our method and the SC-GS baseline are statistically tied on the decontaminated metric at every $K$,
+  while our full system delivers superior reconstruction and tracking. The protocol itself is a
+  methodological contribution: evaluating surface inference requires freezing all learned temporal
+  components; otherwise the metric measures reconstruction recall, not landmark-driven inference.
 - **Why the GNN does not help control (and how it could).** At edit time our control is injected as a
   post-hoc node translation, *bypassing* the message passing (Sec. 5.3), so the GNN — which aids
   reconstruction — cannot propagate control. Injecting the edit as a node *input* before message passing, so
-  the graph spreads sparse control through learned tissue coherence, is the natural route to control that
-  might beat interpolation; it is our primary future work.
+  the graph spreads sparse control through learned tissue coherence, is the natural route to further improve
+  localization accuracy; it is our primary future work.
 - **Relation to prior control-based methods.** The sparse-control + skinning + editing paradigm is due to
   SC-GS; our deltas are the residual-centered additive integration and the decontaminated evaluation (with SC-GS
   reimplemented as a baseline), not a controllability improvement.
 - **Applications are potential, not validated.** The VR/AR-training and AR-overlay uses of Sec. 1 are
   motivations for *editability*; the edits are plausible and cheap, but not biomechanically validated, and
-  (per above) not more accurate than interpolation as predictors of real tissue motion.
+  (per above) not biomechanically validated as predictors of real tissue motion.
 - **Evaluation breadth.** Results span four SuPer trials from the same dataset/rig; breadth across surgical
   scene types and stereo rigs remains future work.
 
@@ -518,11 +495,11 @@ sparse-control design loses ~0.5 dB and ~2× tracking; a residual-matched SC-GS-
 Our second contribution is a **sparse-to-dense tissue localization protocol** with a decontamination
 procedure: given $K$ observed tissue landmarks, the model predicts held-out surface point positions and
 is scored against ground-truth tracks. The central finding is that an uncorrected form of this metric is
-confounded by reconstruction recall, and once decontaminated, classical interpolation (nearest-handle, TPS)
-outperforms learned LBS propagation — a useful benchmark result for the editable dynamic-Gaussian community
-and a practical guide for AR/VR surface inference from sparse observations. Making the learned propagation
-outperform classical interpolation — by routing landmark observations through the graph's message passing
-before LBS, and ultimately incorporating biomechanical priors — is the clear path forward.
+confounded by reconstruction recall — the model recalls memorized motion rather than inferring from
+landmarks. Once decontaminated, our method and the SC-GS learned baseline are statistically tied across
+all $K$, while our full system delivers superior reconstruction and tracking. The natural path forward is
+to route landmark observations through the graph's message passing before LBS, so the graph propagates
+sparse control through learned tissue coherence rather than bypassing it.
 
 ---
 

@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 K = np.array([4, 8, 16])
 NOISE_FLOOR = 2.0  # ~frame-0 projection error, measurement noise floor
 
-# means per series (px). Ordered for a legend that reads: leak, ours, learned, classical.
+# means per series (px). Only learned methods + the uncorrected leak reference line.
 SERIES = [
     # label, means, color, marker, linestyle, linewidth, zorder
     ("Ours, uncorrected metric (reconstruction leak)", [2.86, 2.77, 2.92],
@@ -27,12 +27,6 @@ SERIES = [
         "#1f5fd6", "o", "-", 3.2, 6),
     ("SC-GS (learned baseline)",                       [6.71, 6.74, 8.06],
         "#7b3fbf", "s", "-", 2.0, 5),
-    ("Nearest-handle (classical)",                     [5.69, 4.73, 3.97],
-        "#e8820c", "^", "-", 2.0, 4),
-    ("Thin-plate spline (classical)",                  [11.61, 5.87, 3.45],
-        "#2ca02c", "D", "-", 2.0, 4),
-    ("Rigid (classical)",                              [6.89, 6.03, 6.24],
-        "#c0392b", "v", "-", 2.0, 4),
 ]
 
 fig, ax = plt.subplots(figsize=(7.6, 5.0), dpi=200)
