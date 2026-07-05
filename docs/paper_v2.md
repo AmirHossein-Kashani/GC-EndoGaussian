@@ -206,22 +206,30 @@ Experiments use one NVIDIA H100 GPU with PyTorch 2.5.1, CUDA 12.x, and Python 3.
 
 Table 1 compares GC-EndoGaussian with EndoGaussian under the standard and extended training schedules. Under the standard 3000-iteration fine stage on `pulling_soft_tissues`, the editable model is 0.27 dB lower in PSNR. Under the extended schedule, the difference is 0.15 dB on `pulling_soft_tissues` and 0.13 dB on `cutting_tissues_twice`. SSIM, LPIPS, and depth RMSE also remain close but consistently favor the dense baseline in these comparisons.
 
-*Table 1. Reconstruction under matched optimization schedules. $\Delta$PSNR is GC-EndoGaussian minus EndoGaussian.*
+*Table 1. Reconstruction under matched optimization schedules. $\Delta$PSNR is method minus EndoGaussian.
+SC-GS Depth-RMSE and 6000-iteration/cutting results are not available (SC-GS was not the focus of the
+extended comparison).*
 
-| Dataset | Fine-stage schedule | Method | PSNR↑ | SSIM↑ | LPIPS↓ | Depth-RMSE↓ | $\Delta$PSNR |
+| Dataset | Fine-stage iters | Method | PSNR↑ | SSIM↑ | LPIPS↓ | Depth-RMSE↓ | $\Delta$PSNR |
 |---|---:|---|---:|---:|---:|---:|---:|
 | pulling | 3000 | EndoGaussian | 37.27 | 0.9578 | 0.0609 | 2.906 | — |
+| pulling | 3000 | SC-GS-style | 36.80 | 0.9505 | 0.0885 | — | −0.47 |
 | pulling | 3000 | **GC-EndoGaussian** | 37.00 | 0.9559 | 0.0638 | 3.139 | **−0.27** |
 | pulling | 6000 | EndoGaussian | 37.32 | 0.9578 | 0.0509 | 2.646 | — |
 | pulling | 6000 | **GC-EndoGaussian** | 37.17 | 0.9567 | 0.0533 | 2.793 | **−0.15** |
 | cutting | 6000 | EndoGaussian | 39.42 | 0.9696 | 0.0322 | 1.358 | — |
 | cutting | 6000 | **GC-EndoGaussian** | 39.29 | 0.9689 | 0.0339 | 1.384 | **−0.13** |
 
-These results do not demonstrate numerical equivalence. They show that adding sparse control produces a small, measurable reconstruction cost while retaining performance close to the dense baseline.
+GC-EndoGaussian sits between the two reference points: 0.27 dB below EndoGaussian and 0.20 dB above the
+SC-GS-style model at the same 3000-iteration budget. Under the extended schedule, the gap to EndoGaussian
+narrows to 0.15 dB (pulling) and 0.13 dB (cutting). These results do not demonstrate numerical
+equivalence with EndoGaussian; they show that adding sparse control produces a measurable but small
+reconstruction cost compared to the dense baseline, and a clear fidelity advantage over a residual-free
+sparse-control model.
 
 ![Reconstruction comparison](figures/recon_pulling_triptych.png)
 
-*Figure 3. Reconstruction on `pulling_soft_tissues`, frame 40. Left: ground truth. Center: GC-EndoGaussian rendering. Right: per-pixel error map. The visualization complements the aggregate metrics in Table 1.*
+*Figure 3. Reconstruction on `pulling_soft_tissues`, frame 40. Left: ground truth. Center: GC-EndoGaussian rendering. Right: per-pixel error map. Residual error concentrates on the specular surgical tool; the deforming tissue is reconstructed faithfully, consistent with the −0.27 dB gap in Table 1.*
 
 ### 5.2 Runtime and parameter overhead
 
@@ -240,11 +248,23 @@ The table compares optimization-step counts rather than wall-clock training time
 
 ### 5.3 Tracking shows no detected difference from EndoGaussian
 
-Across the four SuPer trials, median reprojection error is 3.30 pixels for GC-EndoGaussian and 3.47 pixels for EndoGaussian. The corresponding bootstrap 95% confidence intervals are [3.14, 3.46] and [3.34, 3.59]. A paired Wilcoxon signed-rank test gives $p=0.73$.
+*Table 3. Tracking reprojection error (px). Cross-trial median over four SuPer trials with bootstrap 95%
+CIs; trial-3 median for SC-GS (full cross-trial tracking for SC-GS is not available).*
 
-The appropriate interpretation is that the experiment detects no statistically significant difference in tracking error between the two models. This result is not an equivalence test and should not be interpreted as proof that the methods are identical within a predefined margin.
+| Method | Median RPE (px) | 95% CI |
+|---|---:|---|
+| EndoGaussian | 3.47 | [3.34, 3.59] |
+| SC-GS-style, no residual | 7.02 | — (trial 3) |
+| **GC-EndoGaussian** | **3.30** | [3.14, 3.46] |
 
-The residual-free SC-GS-style model provides a more informative contrast. On SuPer trial 3, its median reprojection error is 7.02 pixels. Adding the dense residual reduces this error to 3.41 pixels, close to GC-EndoGaussian at 3.30 pixels and EndoGaussian at 3.47 pixels.
+GC-EndoGaussian and EndoGaussian have overlapping confidence intervals; a paired Wilcoxon signed-rank
+test gives $p=0.73$. The appropriate interpretation is that the experiment detects no statistically
+significant difference between the two models. This is not an equivalence test and should not be read as
+proof the methods are identical within a predefined margin.
+
+The SC-GS-style model provides the informative contrast: without the per-Gaussian residual, tracking
+error more than doubles relative to both EndoGaussian and GC-EndoGaussian. Adding the residual
+(SC-GS-style + residual) recovers tracking to 3.41 px, as shown in the residual isolation of §5.4.
 
 ![SuPer reconstruction](figures/recon_super_t3_triptych.png)
 
@@ -253,13 +273,13 @@ The residual-free SC-GS-style model provides a more informative contrast. On SuP
 ### 5.4 The dense residual is the key fidelity-preserving component
 
 Which part of the recipe keeps editing reconstruction-neutral — the graph message passing, the
-translation-only design, or the per-Gaussian residual? Table 3 answers cleanly: we train an SC-GS-style
+translation-only design, or the per-Gaussian residual? Table 4 answers cleanly: we train an SC-GS-style
 control **with and without** the per-Gaussian residual, at the same 3000-iteration budget, and compare to
 GC-EndoGaussian. The residual-free model achieves 36.80 dB and 7.02-pixel tracking error. Adding the
 residual raises PSNR to 37.29 dB and lowers tracking error to 3.41 pixels — recovering the entire gap.
 This recovery occurs without adopting GC-EndoGaussian's graph message passing or translation-only control.
 
-*Table 3. Residual isolation. Reconstruction is reported on `pulling_soft_tissues` after 3000 fine-stage iterations. Tracking is median reprojection error on SuPer trial 3.*
+*Table 4. Residual isolation. Reconstruction is reported on `pulling_soft_tissues` after 3000 fine-stage iterations. Tracking is median reprojection error on SuPer trial 3.*
 
 | Method | PSNR↑ | SSIM↑ | LPIPS↓ | Track RPE↓ |
 |---|---:|---:|---:|---:|
