@@ -1,5 +1,26 @@
 # Paper updates — new experiments → LaTeX, section by section
 
+## 2026-07-10: workshop revision (`main_workshop.tex`)
+
+All 7 feedback items addressed; the submission-ready file is **`docs/main_workshop.tex`**.
+
+| # | Feedback | Resolution |
+|---|---|---|
+| 1 | 8 pages, anonymous | Anonymized (no authors/emails/placeholders); cut Fig 2 (3-panel edit), pulling triptych, efficiency table; merged Related Work 4→2 subsections; dropped SE(3) equation |
+| 2 | Reframe contribution | Contributions reordered: residual-matched finding first, measured interface second, recipe third; abstract restructured accordingly |
+| 3 | SimEndoGS + 2025 sparse-node sim | Cited + contrasted in §2.1 (they *simulate physics*; we *edit a learned dynamic reconstruction*, no biomechanical claim). BibTeX in `docs/new_references.bib` |
+| 4 | Architecture choice | "Why translation-only?" paragraph with same-GPU numbers: FPS 206 vs 216 (comparable), tracking 3.30 vs 3.41 px, temporal leakage lowest for GC, semantics + 3 fewer mechanisms; SC-GS+residual named a validated alternative |
+| 5 | CUDA error in stat | Statistic now "collapsed on one of four completed seeds"; CUDA fault excluded via footnote as possible infrastructure failure |
+| 6 | Temporal edit evaluation | New `tab:temporal` (job XXXXXXXX): fidelity constant over 5 timestamps; leakage worst-case 10.6% (GC) vs 23.7% (no residual); foldover <0.5% |
+| 7 | Video demo | `docs/supplementary/demo_pulling.mp4` (16s) + `demo_cutting.mp4` (29s): replay, interactive drag + locality heatmap, edit held across the sequence; anonymized |
+
+**Upload to the submission site:** `main_workshop.tex` content, `figures/fig_edit_locality.pdf`,
+`figures/fig_residual_ablation.pdf` (if not already up), and the two supplementary videos.
+
+---
+
+# Original journal-version updates (2026-07-09)
+
 Sources: job XXXXXXXX (edit metrics, `eval_edit.py`), jobs XXXXXXXX–90 + XXXXXXXX
 (seed study: seeds 1234/2025/3407/4242 + the existing seed-6666 paper runs).
 Numbers below are final.

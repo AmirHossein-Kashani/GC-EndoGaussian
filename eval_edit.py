@@ -62,6 +62,8 @@ def main():
     parser.add_argument("--radius_frac", type=float, default=0.10)
     parser.add_argument("--mags", type=float, nargs="+", default=[0.01, 0.02, 0.04, 0.08])
     parser.add_argument("--latency_reps", type=int, default=30)
+    parser.add_argument("--times", type=float, nargs="*", default=[],
+                        help="extra timestamps for the temporal sweep (fidelity/leak_px/foldover per t)")
     args = get_combined_args(parser)
     if args.configs:
         from utils.config_loader import load_config
@@ -207,6 +209,66 @@ def main():
         energy = dict(node_frac=e_node / max(e_node + e_res, 1e-12),
                       residual_frac=e_res / max(e_node + e_res, 1e-12))
 
+    # ---- temporal sweep: same interface metrics at multiple timestamps ----
+    # (reviewer request: does edit behavior hold across the deforming sequence?)
+    per_time = []
+    req_times = list(getattr(args, "times", []) or [])
+    if req_times:
+        vcams = scene.getVideoCameras()
+        mag_frac_t = 0.04                                     # one mid magnitude per timestamp
+        for tt in req_times:
+            cam_t = min(vcams, key=lambda c: abs(c.time - tt))
+            t_used = cam_t.time
+            nd.edit_translation = torch.zeros(M, 3, device=nx.device)
+            p0t = deformed_xyz(gaussians, t_used)
+            base_t = render(cam_t, gaussians, pipe, bg, stage="fine")["render"]
+            sub_i, src_t, nbr_t = knn_pairs(p0t)
+            rest_t = p0t[sub_i][src_t] - p0t[sub_i][nbr_t]
+            fids, leaks, folds = [], [], []
+            for hi, c in enumerate(centers[:4]):              # 4 handle draws per timestamp
+                sel = (nx - nx[int(c)]).norm(dim=1) < handle_radius
+                if int(sel.sum()) < 3:
+                    continue
+                handle_ids = torch.nonzero(sel).squeeze(1)
+                w_handle = torch.zeros(N, device=nx.device)
+                for kk in range(bidx.shape[1]):
+                    w_handle += bw[:, kk] * torch.isin(bidx[:, kk], handle_ids).float()
+                core = w_handle > 0.5
+                mag = mag_frac_t * ext
+                disp = torch.zeros(M, 3, device=nx.device)
+                disp[sel] = axes[hi % 3] * mag
+                nd.edit_translation = disp
+                p1t = deformed_xyz(gaussians, t_used)
+                d = (p1t - p0t).norm(dim=1)
+                if core.any():
+                    fids.append(float((d[core] / mag).mean()))
+                dvec = (p1t - p0t)[sub_i]
+                new_vec = rest_t + (dvec[src_t] - dvec[nbr_t])
+                folds.append(float((torch.einsum("ij,ij->i", new_vec, rest_t) < 0).float().mean()))
+                if core.any():
+                    ph = torch.cat([p0t[core], torch.ones_like(p0t[core][:, :1])], dim=1)
+                    clip = ph @ cam_t.full_proj_transform.to(p0t.device)
+                    ndc = clip[:, :3] / clip[:, 3:4].clamp_min(1e-7)
+                    u = ((ndc[:, 0] * .5 + .5) * W).round().long().clamp(0, W - 1)
+                    v = ((ndc[:, 1] * .5 + .5) * H).round().long().clamp(0, H - 1)
+                    img = render(cam_t, gaussians, pipe, bg, stage="fine")["render"]
+                    diff = (img - base_t).abs().sum(0)
+                    roi = torch.zeros(H, W, device=diff.device, dtype=torch.bool)
+                    roi[v, u] = True
+                    pad = 15
+                    roi = torch.nn.functional.max_pool2d(roi[None, None].float(),
+                                                         2 * pad + 1, 1, pad)[0, 0].bool()
+                    total = float(diff.sum())
+                    leaks.append(float(diff[~roi].sum() / total) if total > 0 else 0.0)
+            nd.edit_translation = torch.zeros(M, 3, device=nx.device)
+            per_time.append(dict(t=float(t_used),
+                                 fidelity=float(np.median(fids)) if fids else None,
+                                 leak_px=float(np.median(leaks)) if leaks else None,
+                                 foldover=float(np.median(folds)) if folds else None,
+                                 n=len(fids)))
+            print(f"[t={t_used:.2f}] fidelity={per_time[-1]['fidelity']} "
+                  f"leak_px={per_time[-1]['leak_px']} foldover={per_time[-1]['foldover']}")
+
     # ---- aggregate ----
     def agg(key, mask_fn=lambda e: True):
         vals = [e[key] for e in per_edit if e[key] is not None and mask_fn(e) and np.isfinite(e[key])]
@@ -222,7 +284,8 @@ def main():
                mags=args.mags, per_edit=per_edit, locality_curve=curve,
                handle_fidelity=agg("fidelity"), leak3d=agg("leak3d"),
                leak_px=agg("leak_px"), foldover=agg("foldover"),
-               strain_p95=agg("strain_p95"), latency_ms=latency_ms, energy_split=energy)
+               strain_p95=agg("strain_p95"), latency_ms=latency_ms, energy_split=energy,
+               per_time=per_time)
 
     print("\n================ EDIT METRICS ================")
     print(f"model: {args.model_path} @ {args.iteration} | nodes={M} gaussians={N}")

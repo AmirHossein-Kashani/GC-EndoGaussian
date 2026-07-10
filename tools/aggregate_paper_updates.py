@@ -1,4 +1,4 @@
-"""Aggregate the seed study + edit metrics into paper-ready numbers.
+"""Aggregate the seed study + edit metrics + training wall-clock into paper-ready numbers.
 
 1. Seed study: mean +/- std over seeds {6666 (paper default, existing runs), 1234, 2025, 3407}
    for the four Table-3 configs on pulling @ 3000 fine iterations.
@@ -90,6 +90,36 @@ for mdir, lbl in EDIT_MODELS:
           f"{100*d['foldover']['median']:>7.3f} {d['strain_p95']['median']:>9.3f} "
           f"{d['latency_ms']:>7.1f} {ef.get('residual_frac', float('nan')):>9.3f}")
     curves[lbl] = d["locality_curve"]
+
+# ---- training wall-clock per config, parsed from the seed-study job logs ----
+# Section start = first timestamped train.py line after the "######## <tag> seed=" header;
+# section end = its "Training complete. [dd/mm HH:MM:SS]" line (render/metrics excluded).
+import re, glob
+print()
+print("=" * 72)
+print("TRAINING WALL-CLOCK (pulling @ 1000+3000, from seed-study logs)")
+print("=" * 72)
+TS = re.compile(r"\[(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d)\]")
+def ts_seconds(m):
+    return int(m.group(2)) * 86400 + int(m.group(3)) * 3600 + int(m.group(4)) * 60 + int(m.group(5))
+durations = {}
+for logf in sorted(glob.glob("output_seed_study_*.out")) + sorted(glob.glob("output_seed_retry_*.out")):
+    tag, start = None, None
+    for line in open(logf, errors="ignore"):
+        h = re.match(r"######## (\w+) seed=", line)
+        if h:
+            tag, start = h.group(1), None
+            continue
+        if tag is None:
+            continue
+        m = TS.search(line)
+        if m and start is None:
+            start = ts_seconds(m)
+        if "Training complete." in line and m and start is not None:
+            durations.setdefault(tag, []).append(ts_seconds(m) - start)
+            tag, start = None, None
+for tag, ds in sorted(durations.items()):
+    print(f"{tag:12s}: {np.mean(ds)/60:.1f} +/- {np.std(ds)/60:.1f} min  (n={len(ds)}, {sorted(round(d/60,1) for d in ds)})")
 
 # locality-curve figure: sharp fall-off + compact support is the message
 if curves:
