@@ -12,10 +12,10 @@ All 7 feedback items addressed; the submission-ready file is **`docs/main_worksh
 | 4 | Architecture choice | "Why translation-only?" paragraph with same-GPU numbers: FPS 206 vs 216 (comparable), tracking 3.30 vs 3.41 px, temporal leakage lowest for GC, semantics + 3 fewer mechanisms; SC-GS+residual named a validated alternative |
 | 5 | CUDA error in stat | Statistic now "collapsed on one of four completed seeds"; CUDA fault excluded via footnote as possible infrastructure failure |
 | 6 | Temporal edit evaluation | New `tab:temporal` (job XXXXXXXX): fidelity constant over 5 timestamps; leakage worst-case 10.6% (GC) vs 23.7% (no residual); foldover <0.5% |
-| 7 | Video demo | `docs/supplementary/demo_reveal.mp4` (17s, anonymized): replay, then the paper-figure tissue-retraction reveal (ramp-hold-release with locality heatmap), then the retraction held across the deforming sequence |
+| 7 | Video demo | `docs/supplementary/demo.mp4` (26s, 1280x1024, anonymized): (1) GT-vs-ours replays on the four da Vinci SuPer trials + pulling/cutting, (2) the residual ablation playing over time with tissue-masked error heatmaps, (3) the paper-figure drag ramped/held with locality heatmap and held across time |
 
 **Upload to the submission site:** `main_workshop.tex` content, `figures/fig_edit_locality.pdf`,
-`figures/fig_residual_ablation.pdf` (if not already up), and `docs/supplementary/demo_reveal.mp4`.
+`figures/fig_residual_ablation.pdf` (if not already up), and `docs/supplementary/demo.mp4`.
 
 ---
 
