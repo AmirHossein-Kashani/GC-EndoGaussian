@@ -29,11 +29,11 @@ the recipe transferable to other sparse-control designs.
 tissue to reveal the region behind — left: before · middle: after · right: per-pixel
 edit magnitude. Controllable visibility only; tissue mechanics are not modeled.*
 
-> **Demo videos** (in [`docs/supplementary/`](docs/supplementary/)):
+<!-- > **Demo videos** (in [`docs/supplementary/`](docs/supplementary/)):
 > [`demoF2.mp4`](docs/supplementary/demoF2.mp4) — full walkthrough (generality →
 > the residual finding → editability) with the edit reveal appended ·
 > [`edit_reveal_cutting_seq.mp4`](docs/supplementary/edit_reveal_cutting_seq.mp4) —
-> the lateral retraction applied *during* live 4D playback.
+> the lateral retraction applied *during* live 4D playback. -->
 
 ---
 
