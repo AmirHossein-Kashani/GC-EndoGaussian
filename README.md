@@ -29,11 +29,13 @@ the recipe transferable to other sparse-control designs.
 tissue to reveal the region behind — left: before · middle: after · right: per-pixel
 edit magnitude. Controllable visibility only; tissue mechanics are not modeled.*
 
-<!-- > **Demo videos** (in [`docs/supplementary/`](docs/supplementary/)):
-> [`demoF2.mp4`](docs/supplementary/demoF2.mp4) — full walkthrough (generality →
-> the residual finding → editability) with the edit reveal appended ·
+> **Demo videos** (in [`docs/supplementary/`](docs/supplementary/)):
+> [`demoF2_presentation.mp4`](docs/supplementary/demoF2_presentation.mp4) — **the
+> submitted supplementary video**: a narrated walkthrough (what the method does →
+> how to read the demo → four da Vinci + two EndoNeRF replays → the residual
+> finding → the edit reveal → results) ·
 > [`edit_reveal_cutting_seq.mp4`](docs/supplementary/edit_reveal_cutting_seq.mp4) —
-> the lateral retraction applied *during* live 4D playback. -->
+> the lateral retraction applied *during* live 4D playback.
 
 ---
 
@@ -70,7 +72,7 @@ generalizes beyond this particular implementation.
 
 ## ⚙️ Setup
 ```bash
-git clone --recurse-submodules <this-repo>
+git clone --recurse-submodules https://github.com/AmirHossein-Kashani/EndoGaussian.git
 cd EndoGaussian
 git submodule update --init --recursive
 conda create -n EndoGaussian python=3.12
@@ -167,11 +169,22 @@ releases) with `tools/make_edit_reveal_seq.py` (see `run_edit_reveal_seq.bash`),
 build the representative supplementary walkthrough with `tools/make_demo_video.py`
 (see `run_demo_video.bash`).
 
+The submitted supplementary video is assembled from three pieces:
+`tools/make_demo_core.py` (side-by-side ground-truth/reconstruction replays and the
+residual ablation over time), `tools/make_presentation_cards.py` (the title, "what this
+does", how-to-read and results cards), and `tools/make_edit_reveal_seq.py` — concatenated
+with `ffmpeg` at 1280×1024 / 30 fps. For the da Vinci sequences the tool masks are first
+grown with `tools/dilate_tool_masks.py` (a 10-px dilation, so the instrument is fully
+excluded from the photometric loss) and the four trials retrained via
+`run_super_tooldil.bash`; masking is binary, so mask *coverage* — not a weight — is what
+controls how completely the tool disappears from the reconstruction.
+
 ## 📖 Documentation
 
 | Document | Read it for |
 |---|---|
-| [docs/paper_v2.md](docs/paper_v2.md) | The paper: abstract, method, experiments, honest findings, references (LaTeX in `docs/main_workshop.tex`). |
+| [docs/main_camera_ready.tex](docs/main_camera_ready.tex) | **The current paper source** (camera-ready LaTeX, Wiley/USG template). [docs/paper_v2.md](docs/paper_v2.md) is the earlier readable markdown draft. |
+| [docs/response_to_reviewers.md](docs/response_to_reviewers.md) | Point-by-point response to the workshop reviews and the resulting manuscript changes. |
 | [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | Exact configs, hyperparameters, data pipeline, and how to reproduce every number and figure. |
 | [docs/RESEARCH_OVERVIEW.md](docs/RESEARCH_OVERVIEW.md) | A single readable account of the key techniques (motion-weighted seeding, the *match* recipe, the residual) and an honest publication assessment. |
 

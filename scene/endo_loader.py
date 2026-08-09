@@ -594,8 +594,9 @@ class Hamlyn_Dataset(object):
         imgs = imgs[:, :, :, crop_size:].contiguous()
         masks = masks[:, :, :, crop_size:].contiguous()
         depths = depths[:, :, :, crop_size:].contiguous()
-        imgs_interp = imgs_interp[:, :, :, crop_size:].contiguous()
-        masks_interp = masks_interp[:, :, :, crop_size:].contiguous()
+        # (the journal snapshot also carried tool-inpainted `images_interp` views for a
+        # free-view "interp" split; the ForPlane release ships no such directory and the
+        # live tree never consumed it, so that machinery is removed from this path)
         
         intrinsics.width = intrinsics.width - crop_size
         intrinsics.center_x = intrinsics.center_x - crop_size / 2
@@ -619,9 +620,7 @@ class Hamlyn_Dataset(object):
         
         # self assignment
         self.imgs = imgs
-        self.imgs_interp = imgs_interp
         self.masks = masks
-        self.masks_interp = masks_interp    
         self.inf_depth = inf_depth
         self.close_depth = close_depth 
         self.depths = depths
