@@ -180,7 +180,13 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
         if (gt_depths!=0).sum() < 10:
             depth_loss = torch.tensor(0.).cuda()
         elif scene.mode == 'binocular':
-            rendered_depths[rendered_depths!=0] = 1 / rendered_depths[rendered_depths!=0]
+            # A Gaussian drifting into the near plane renders a depth of ~0; un-clamped 1/depth then
+            # explodes the L1 and NaN-poisons every parameter in one step (seen with per-frame tool
+            # masks, where masked-region Gaussians are photometrically unconstrained). Treat anything
+            # closer than 1 unit (mm scale) as invalid, like a depth of 0.
+            near_ok = rendered_depths > 1.0
+            rendered_depths = torch.where(near_ok, 1.0 / rendered_depths.clamp_min(1.0),
+                                          torch.zeros_like(rendered_depths))
             gt_depths[gt_depths!=0] = 1 / gt_depths[gt_depths!=0]
             depth_loss = l1_loss(rendered_depths, gt_depths, masks)
         elif scene.mode == 'monocular':
@@ -189,6 +195,10 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
             mask_tmp = mask.reshape(-1)
             rendered_depths_reshape, gt_depths_reshape = rendered_depths_reshape[mask_tmp!=0, :], gt_depths_reshape[mask_tmp!=0, :]
             depth_loss =  0.001 * (1 - pearson_corrcoef(gt_depths_reshape, rendered_depths_reshape))
+            # pearson_corrcoef divides by the std of each input; a near-constant rendered depth
+            # makes it NaN, which then poisons every parameter. Drop the term instead.
+            if not torch.isfinite(depth_loss):
+                depth_loss = torch.tensor(0.).cuda()
         else:
             raise ValueError(f"{scene.mode} is not implemented.")
         
@@ -244,6 +254,14 @@ def scene_reconstruction(dataset, opt, hyper, pipe, testing_iterations, saving_i
             lpipsloss = lpips_loss(rendered_images,gt_images,lpips_model)
             loss += opt.lambda_lpips * lpipsloss
         
+        # One non-finite loss is enough to NaN every parameter on the next step (per-Gaussian params
+        # have no grad clipping), which renders black forever after. Skip the step instead and say
+        # which term went bad -- observed on STIR scenes mid-fine-stage.
+        if not torch.isfinite(loss):
+            print(f"\n[NaN-guard] iter {iteration} ({stage}): loss={loss.item()} "
+                  f"Ll1={Ll1.item()} depth={depth_loss.item()} tv={tv_loss.item()} -- step skipped")
+            gaussians.optimizer.zero_grad(set_to_none=True)
+            continue
         loss.backward()
         viewspace_point_tensor_grad = torch.zeros_like(viewspace_point_tensor)
         for idx in range(0, len(viewspace_point_tensor_list)):
