@@ -200,32 +200,13 @@ codebase as its base** and follows the editable sparse-control paradigm of
 [EndoNeRF](https://github.com/med-air/EndoNeRF). Sincere thanks to all of these authors
 for releasing their code.
 
-## 📜 Citation
+## 📚 Inspired by
 
-GC-EndoGaussian has been accepted at the
-[AE-CAI | CARE | OR 2.0 Joint MICCAI Workshop 2026](https://workshops.ap-lab.ca/aecai2026/).
-If it is helpful in your research, please also cite the works it builds on:
+GC-EndoGaussian is inspired by and builds on these works:
 
-```bibtex
-@inproceedings{huang2024scgs,
-  title={SC-GS: Sparse-Controlled Gaussian Splatting for Editable Dynamic Scenes},
-  author={Huang, Yi-Hua and Sun, Yang-Tian and Yang, Ziyi and Lyu, Xiaoyang and Cao, Yan-Pei and Qi, Xiaojuan},
-  booktitle={CVPR},
-  year={2024}
-}
-@misc{liu2024endogaussian,
-  title={EndoGaussian: Gaussian Splatting for Deformable Surgical Scene Reconstruction},
-  author={Yifan Liu and Chenxin Li and Chen Yang and Yixuan Yuan},
-  year={2024},
-  eprint={2401.12561},
-  archivePrefix={arXiv},
-  primaryClass={cs.CV}
-}
-@article{liu2025foundation,
-  title={Foundation Model-guided Gaussian Splatting for 4D Reconstruction of Deformable Tissues},
-  author={Liu, Yifan and Li, Chenxin and Liu, Hengyu and Yang, Chen and Yuan, Yixuan},
-  journal={IEEE Transactions on Medical Imaging},
-  year={2025},
-  publisher={IEEE}
-}
-```
+- **SC-GS**: Sparse-Controlled Gaussian Splatting for Editable Dynamic Scenes (CVPR 2024)
+  · [project](https://yihua7.github.io/SC-GS-web/) · [code](https://github.com/yihua7/SC-GS)
+- **EndoGaussian**: Gaussian Splatting for Deformable Surgical Scene Reconstruction
+  · [arXiv:2401.12561](http://arxiv.org/abs/2401.12561) · [code](https://github.com/yifliu3/EndoGaussian)
+- **Foundation Model-guided Gaussian Splatting for 4D Reconstruction of Deformable Tissues**
+  (IEEE Transactions on Medical Imaging, 2025)
