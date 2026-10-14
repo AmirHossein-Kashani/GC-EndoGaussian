@@ -202,8 +202,9 @@ for releasing their code.
 
 ## 📜 Citation
 
-GC-EndoGaussian is currently under review (anonymous submission). If it is helpful in
-your research, please cite the works it builds on:
+GC-EndoGaussian has been accepted at the
+[AE-CAI | CARE | OR 2.0 Joint MICCAI Workshop 2026](https://workshops.ap-lab.ca/aecai2026/).
+If it is helpful in your research, please also cite the works it builds on:
 
 ```bibtex
 @inproceedings{huang2024scgs,
