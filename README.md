@@ -2,6 +2,10 @@
 
 ### Residual-Centered Sparse Control for Editable Endoscopic 4D Gaussian Reconstruction
 
+> 🎉 **Accepted** at the [**AE-CAI | CARE | OR 2.0 Joint MICCAI Workshop 2026**](https://workshops.ap-lab.ca/aecai2026/)
+> (Augmented Environments for Computer-Assisted Interventions · Computer-Assisted Robotic
+> Endoscopy · Context Aware Operating Theaters), MICCAI 2026, Strasbourg, France.
+
 GC-EndoGaussian adds a **sparse, editable control layer** to dynamic 4D Gaussian
 Splatting for endoscopic scene reconstruction. It merges the dense per-Gaussian
 deformation field of [**EndoGaussian**](http://arxiv.org/abs/2401.12561) with the
