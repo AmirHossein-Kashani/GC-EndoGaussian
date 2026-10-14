@@ -107,4 +107,4 @@ The real EndoNeRF clips live only on the authors' Google Drive ([folder](https:/
 bash tools/download_endonerf_pulling.bash      # -> data/endonerf/pulling/{images,depth,masks}/*.png + poses_bounds.npy
 ```
 
-Drive file IDs are pinned in `tools/endonerf_pulling/fileids.tsv` (63 images + 63 depth + 63 masks + poses_bounds; binocular mode). The full run (train 1000+3000 → render test/video/point-clouds → metrics) is wired up in [run_endogaussian.bash](run_endogaussian.bash); it reproduces paper-level quality on `pulling` (PSNR ~37.3, SSIM ~0.96, LPIPS ~0.06). `data/`, `output/`, and `reconstruct/` are git-ignored.
+Drive file IDs are pinned in `tools/endonerf_pulling/fileids.tsv` (63 images + 63 depth + 63 masks + poses_bounds; binocular mode). The full run (train 1000+3000 → render test/video/point-clouds → metrics) is the three commands under "Common commands" above; it reproduces paper-level quality on `pulling` (PSNR ~37.3, SSIM ~0.96, LPIPS ~0.06). `data/`, `output/`, and `reconstruct/` are git-ignored.

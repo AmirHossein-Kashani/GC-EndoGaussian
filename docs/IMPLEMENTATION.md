@@ -305,7 +305,7 @@ Median RPE **3.30 (ours) vs 3.47 (vanilla)** px, 95% CIs [3.14, 3.46] vs [3.34, 
 Which part of the recipe keeps editing reconstruction-neutral? Train SC-GS-style control (`gnn_layers=0`,
 full SE(3), ARAP) **with and without** the per-Gaussian residual ([pulling_graph_scgs.py](../arguments/endonerf/pulling_graph_scgs.py)
 vs [pulling_graph_scgs_hybrid.py](../arguments/endonerf/pulling_graph_scgs_hybrid.py)), 3000 iters
-([run_scgs_residual.bash](../run_scgs_residual.bash)):
+(`run_scgs_residual.bash`):
 
 | Method | PSNR↑ (pulling) | SSIM↑ | LPIPS↓ | Track RPE↓ (SuPer t3) |
 |---|---|---|---|---|
@@ -374,11 +374,11 @@ python eval_control.py  --model_path output/endonerf/super_match   --configs arg
 # 3. render + demo video
 python render.py --model_path output/endonerf/super_match --configs arguments/endonerf/pulling_graph_match_3k.py --iteration 3000 --skip_train --skip_test
 ```
-The multi-trial study is scripted in [run_gc_multitrial.bash](../run_gc_multitrial.bash) (trials 4/8/9); the
-**SC-GS baseline** in [run_gc_scgs.bash](../run_gc_scgs.bash); the **decontaminated re-eval** in
-[run_control_fair.bash](../run_control_fair.bash); rendering in
-[run_super_render.bash](../run_super_render.bash); the Fig. 4 dumps in
-[run_control_viz.bash](../run_control_viz.bash). SLURM jobs use a single H100.
+The multi-trial study is scripted in `run_gc_multitrial.bash` (trials 4/8/9); the
+**SC-GS baseline** in `run_gc_scgs.bash`; the **decontaminated re-eval** in
+`run_control_fair.bash`; rendering in
+`run_super_render.bash`; the Fig. 4 dumps in
+`run_control_viz.bash`. SLURM jobs use a single H100.
 
 > **Note on decontamination.** `control_results.json` holds the **decontaminated** (control-only) numbers;
 > the uncorrected residual-active numbers are preserved as `control_results_residual.json` per model. The guard

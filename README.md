@@ -136,8 +136,8 @@ python train.py -s data/endonerf/pulling --port 6600 --expname endonerf/pulling_
 Relevant configs under `arguments/endonerf/`: `*_graph_match.py` (final model),
 `*_graph_scgs.py` (SC-GS-style baseline), `*_graph_scgs_hybrid.py` (SC-GS-style +
 residual, the isolation ablation), `*_graph_nognn.py` (message-passing removed).
-The two-stage `sbatch` runners are `run_gc_match.bash` (train + render + metrics) and
-friends; SLURM is required (the rasterizer is CUDA).
+Training requires a CUDA GPU (the rasterizer is a CUDA extension); we ran each scene on
+a single H100.
 
 ## 🎇 Rendering & Reconstruction
 ```
@@ -165,9 +165,8 @@ python tools/edit_figure.py --model_path output/endonerf/cutting_match \
     --out output/endonerf/cutting_match/edit_fig_r06
 ```
 Render the edit *during* live 4D playback (scene plays, the edit ramps in, holds, and
-releases) with `tools/make_edit_reveal_seq.py` (see `run_edit_reveal_seq.bash`), and
-build the representative supplementary walkthrough with `tools/make_demo_video.py`
-(see `run_demo_video.bash`).
+releases) with `tools/make_edit_reveal_seq.py`, and build the representative
+supplementary walkthrough with `tools/make_demo_video.py`. Both are GPU scripts.
 
 The submitted supplementary video is assembled from three pieces:
 `tools/make_demo_core.py` (side-by-side ground-truth/reconstruction replays and the
@@ -175,8 +174,7 @@ residual ablation over time), `tools/make_presentation_cards.py` (the title, "wh
 does", how-to-read and results cards), and `tools/make_edit_reveal_seq.py` — concatenated
 with `ffmpeg` at 1280×1024 / 30 fps. For the da Vinci sequences the tool masks are first
 grown with `tools/dilate_tool_masks.py` (a 10-px dilation, so the instrument is fully
-excluded from the photometric loss) and the four trials retrained via
-`run_super_tooldil.bash`; masking is binary, so mask *coverage* — not a weight — is what
+excluded from the photometric loss) and the four trials retrained; masking is binary, so mask *coverage* — not a weight — is what
 controls how completely the tool disappears from the reconstruction.
 
 ## 📖 Documentation

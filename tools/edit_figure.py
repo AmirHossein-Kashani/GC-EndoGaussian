@@ -10,7 +10,7 @@ Outputs, under <out>/:
   after_<dir>_<mag>.png            one per (direction, magnitude)
   meta.json                        {W,H, per-dir: node px/py, centroid, arrow tip}
 
-Usage (see run_edit_figure.bash):
+Usage:
   python tools/edit_figure.py --model_path output/endonerf/pulling_match \
       --configs arguments/endonerf/pulling_graph_match.py --iteration 6000 \
       --mags 0.08,0.12,0.16,0.20 --dirs +y,-y,+x,-x \

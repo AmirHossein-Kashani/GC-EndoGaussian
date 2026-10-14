@@ -53,7 +53,7 @@ unknown for this dataset, so a 60° horizontal FOV is assumed (f = 554.3 px).
 
 `1000 coarse + 3000 fine`, GC-EndoGaussian MATCH recipe (translation-only nodes, dense residual, no
 coherence losses, frozen nodes) — [arguments/endoscapes/seq83.py](../../arguments/endoscapes/seq83.py),
-[run_endoscapes83.bash](../../run_endoscapes83.bash). One H100, ~6.5 min. Control graph seeded with
+`run_endoscapes83.bash`. One H100, ~6.5 min. Control graph seeded with
 **2048 nodes**, so the editing interface is available.
 
 | Stage | PSNR | Note |
